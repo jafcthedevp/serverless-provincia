@@ -5,7 +5,7 @@ service: validacion-zazu
 provider:
   name: aws
   runtime: python3.12
-  region: us-east-2
+  region: us-west-1
   stage: ${opt:stage, 'dev'}
   memorySize: 256
   timeout: 29
@@ -14,7 +14,7 @@ provider:
     NOTIFICATIONS_TABLE: ${self:service}-notifications-${sls:stage}
     VALIDATIONS_TABLE: ${self:service}-validations-${sls:stage}
     SCREENSHOTS_BUCKET: ${self:service}-screenshots-${sls:stage}
-
+    z|
     WHATSAPP_TOKEN: ${ssm:/zazu/whatsapp_token}
 
     ODOO_CALLBACK_URL: ${ssm:/zazu/odoo_callback_url}
@@ -75,58 +75,7 @@ layers:
       - python3.12
 
 functions:
-  # ===== NOTIFICACIONES (handler.py no usa requests, no necesita layer estricto) =====
-  insertNotification:
-    handler: handler.insert_notification
-    events:
-      - httpApi:
-          path: /insert
-          method: post
-
-  getNotifications:
-    handler: handler.get_notifications
-    events:
-      - httpApi:
-          path: /notifications
-          method: get
-
-  getNotificationById:
-    handler: handler.get_notification_by_id
-    events:
-      - httpApi:
-          path: /notifications/{id}
-          method: get
-
-  getNotificationsByStatus:
-    handler: handler.get_notifications_by_status
-    events:
-      - httpApi:
-          path: /notifications/status/{status}
-          method: get
-
-  getNotificationsByDevice:
-    handler: handler.get_notifications_by_device
-    events:
-      - httpApi:
-          path: /notifications/device/{device_id}
-          method: get
-
-  searchNotifications:
-    handler: handler.search_notifications
-    events:
-      - httpApi:
-          path: /notifications/search
-          method: get
-
-  updateNotificationStatus:
-    handler: handler.update_notification_status
-    events:
-      - httpApi:
-          path: /notifications/{id}/status
-          method: put
-
   # ===== VALIDACIÓN (Usan validation_handler.py, REQUIEREN LAYER) =====
-
   validateFromOdoo:
     handler: validation_handler.validate_from_odoo
     layers:
@@ -207,56 +156,6 @@ functions:
 
 resources:
   Resources:
-    # Tabla de Notificaciones
-    NotificationsTable:
-      Type: AWS::DynamoDB::Table
-      Properties:
-        TableName: ${self:service}-notifications-${sls:stage}
-        BillingMode: PAY_PER_REQUEST
-        AttributeDefinitions:
-          - AttributeName: id
-            AttributeType: S
-          - AttributeName: status
-            AttributeType: S
-          - AttributeName: device_id
-            AttributeType: S
-          - AttributeName: timestamp
-            AttributeType: N
-          - AttributeName: code
-            AttributeType: S
-          - AttributeName: amount
-            AttributeType: N
-        KeySchema:
-          - AttributeName: id
-            KeyType: HASH
-        GlobalSecondaryIndexes:
-          - IndexName: StatusIndex
-            KeySchema:
-              - AttributeName: status
-                KeyType: HASH
-              - AttributeName: timestamp
-                KeyType: RANGE
-            Projection:
-              ProjectionType: ALL
-          - IndexName: DeviceIndex
-            KeySchema:
-              - AttributeName: device_id
-                KeyType: HASH
-              - AttributeName: timestamp
-                KeyType: RANGE
-            Projection:
-              ProjectionType: ALL
-          - IndexName: CodeAmountIndex
-            KeySchema:
-              - AttributeName: code
-                KeyType: HASH
-              - AttributeName: amount
-                KeyType: RANGE
-            Projection:
-              ProjectionType: ALL
-        StreamSpecification:
-          StreamViewType: NEW_AND_OLD_IMAGES
-
     # Tabla de Validaciones
     ValidationsTable:
       Type: AWS::DynamoDB::Table

@@ -1,381 +1,192 @@
-org: maykol
-app: zazu
-service: zazu
+# Validacion Zazu - Documentacion de Funciones Lambda
 
-provider:
-  name: aws
-  runtime: python3.12
-  region: us-east-1
-  stage: ${opt:stage, 'dev'}
-  memorySize: 256
-  timeout: 29
-  logRetentionInDays: 14
-  environment:
-    NOTIFICATIONS_TABLE: ${self:service}-notifications-${sls:stage}
-    VALIDATIONS_TABLE: ${self:service}-validations-${sls:stage}
-    SCREENSHOTS_BUCKET: ${self:service}-screenshots-${sls:stage}
-    WHITELIST_TABLE: ${self:service}-whitelist-${sls:stage}
+## Informacion General
 
-    WHATSAPP_TOKEN: ${ssm:/zazu/whatsapp_token}
-    WEBHOOK_VERIFY_TOKEN: ${ssm:/zazu/webhook_verify_token}
+- **Servicio**: validacion-zazu
+- **Region**: us-west-1
+- **Runtime**: Python 3.12
+- **Stage**: dev (por defecto)
 
-  iam:
-    role:
-      statements:
-        - Effect: Allow
-          Action:
-            - dynamodb:Query
-            - dynamodb:Scan
-            - dynamodb:GetItem
-            - dynamodb:PutItem
-            - dynamodb:UpdateItem
-            - dynamodb:DeleteItem
-            - dynamodb:DescribeTable
-          Resource:
-            - arn:aws:dynamodb:${aws:region}:${aws:accountId}:table/${self:service}-*
-            - arn:aws:dynamodb:${aws:region}:${aws:accountId}:table/${self:service}-*/index/*
+## Flujo Principal
 
-        - Effect: Allow
-          Action:
-            - s3:GetObject
-            - s3:PutObject
-            - s3:DeleteObject
-            - s3:ListBucket
-          Resource:
-            - arn:aws:s3:::${self:service}-screenshots-${sls:stage}
-            - arn:aws:s3:::${self:service}-screenshots-${sls:stage}/*
+Odoo recibe un comprobante de pago por WhatsApp y envia el media_id a este servicio. El servicio descarga la imagen, la sube a S3, ejecuta OCR con Textract, extrae monto y codigo, y lo cruza contra la tabla de notificaciones existente. Si hay match, aprueba el pago y notifica a Odoo. Si no, queda en revision manual.
 
-        - Effect: Allow
-          Action:
-            - textract:DetectDocumentText
-            - textract:AnalyzeDocument
-          Resource: "*"
+---
 
-        - Effect: Allow
-          Action:
-            - lambda:InvokeFunction
-          Resource:
-            - arn:aws:lambda:${aws:region}:${aws:accountId}:function:${self:service}-${sls:stage}-*
+## Funciones con Endpoint HTTP
 
-plugins:
-  - serverless-prune-plugin
+### 1. validateFromOdoo
 
-custom:
-  prune:
-    automatic: true
-    number: 3
+- **Metodo**: POST
+- **Ruta**: /validate-from-odoo
+- **Timeout**: 60s
+- **Descripcion**: Punto de entrada desde Odoo. Recibe los datos del comprobante enviado por WhatsApp e inicia el proceso de validacion de forma asincrona. Retorna 200 inmediatamente.
 
-# ===== DEFINICIÓN DEL LAYER =====
-layers:
-  CommonLibs:
-    path: layers/common # Serverless buscará aquí la carpeta 'python' con las librerías
-    name: ${self:service}-common-libs-${sls:stage}
-    compatibleRuntimes:
-      - python3.12
+**Body requerido**:
 
-functions:
-  # ===== WHITELIST =====
-  addToWhitelist:
-    handler: validation_handler.add_to_whitelist
-    layers:
-      - { Ref: CommonLibsLambdaLayer } # Inyecta el Layer
-    events:
-      - httpApi:
-          path: /whitelist
-          method: post
+| Campo | Tipo | Requerido | Descripcion |
+|---|---|---|---|
+| media_id | string | Si | ID del archivo multimedia de WhatsApp |
+| nota_venta | string | Si | Numero de orden/nota de venta en Odoo |
+| phone_number | string | Si | Numero de telefono del cliente |
+| sender_name | string | No | Nombre del remitente (default: "Cliente") |
 
-  removeFromWhitelist:
-    handler: validation_handler.remove_from_whitelist
-    layers:
-      - { Ref: CommonLibsLambdaLayer }
-    events:
-      - httpApi:
-          path: /whitelist/{phone_number}
-          method: delete
+---
 
-  getWhitelist:
-    handler: validation_handler.get_whitelist
-    layers:
-      - { Ref: CommonLibsLambdaLayer }
-    events:
-      - httpApi:
-          path: /whitelist
-          method: get
+### 2. getDuplicateValidations
 
-  checkWhitelist:
-    handler: validation_handler.check_whitelist
-    layers:
-      - { Ref: CommonLibsLambdaLayer }
-    events:
-      - httpApi:
-          path: /whitelist/{phone_number}
-          method: get
+- **Metodo**: GET
+- **Ruta**: /validations/duplicates
+- **Descripcion**: Retorna todas las validaciones marcadas como duplicadas. Util para el dashboard de monitoreo.
 
-  # ===== NOTIFICACIONES (handler.py no usa requests, no necesita layer estricto) =====
-  insertNotification:
-    handler: handler.insert_notification
-    events:
-      - httpApi:
-          path: /insert
-          method: post
+**Body**: No requiere.
 
-  getNotifications:
-    handler: handler.get_notifications
-    events:
-      - httpApi:
-          path: /notifications
-          method: get
+---
 
-  getNotificationById:
-    handler: handler.get_notification_by_id
-    events:
-      - httpApi:
-          path: /notifications/{id}
-          method: get
+### 3. getValidations
 
-  getNotificationsByStatus:
-    handler: handler.get_notifications_by_status
-    events:
-      - httpApi:
-          path: /notifications/status/{status}
-          method: get
+- **Metodo**: GET
+- **Ruta**: /validations
+- **Descripcion**: Retorna las validaciones mas recientes (limite 50). Usado para el dashboard general.
 
-  getNotificationsByDevice:
-    handler: handler.get_notifications_by_device
-    events:
-      - httpApi:
-          path: /notifications/device/{device_id}
-          method: get
+**Body**: No requiere.
+0
+---
 
-  searchNotifications:
-    handler: handler.search_notifications
-    events:
-      - httpApi:
-          path: /notifications/search
-          method: get
+### 4. getValidationById
 
-  updateNotificationStatus:
-    handler: handler.update_notification_status
-    events:
-      - httpApi:
-          path: /notifications/{id}/status
-          method: put
+- **Metodo**: GET
+- **Ruta**: /validations/{id}
+- **Descripcion**: Retorna el detalle completo de una validacion especifica.
 
-  # ===== VALIDACIÓN Y WHATSAPP (Usan validation_handler.py, REQUIEREN LAYER) =====
+**Parametro de ruta**:
 
-  whatsappWebhook:
-    handler: validation_handler.whatsapp_webhook
-    layers:
-      - { Ref: CommonLibsLambdaLayer }
-    events:
-      - httpApi:
-          path: /whatsapp/webhook
-          method: post
-      - httpApi:
-          path: /whatsapp/webhook
-          method: get
-    timeout: 10
+| Campo | Tipo | Descripcion |
+|---|---|---|
+| id | string | ID de la validacion (UUID) |
 
-  processWhatsAppImage:
-    handler: validation_handler.process_whatsapp_image
-    layers:
-      - { Ref: CommonLibsLambdaLayer }
-    timeout: 60
+**Body**: No requiere.
 
-  sendWhatsAppMessage:
-    handler: validation_handler.send_whatsapp_message_lambda
-    layers:
-      - { Ref: CommonLibsLambdaLayer }
-    timeout: 30
+---
 
-  processScreenshot:
-    handler: validation_handler.process_screenshot
-    layers:
-      - { Ref: CommonLibsLambdaLayer }
-    events:
-      - s3:
-          bucket: ${self:service}-screenshots-${sls:stage}
-          event: s3:ObjectCreated:*
-          existing: true
-    timeout: 60
+### 5. getPendingValidations
 
-  getDuplicateValidations:
-    handler: validation_handler.get_duplicate_validations
-    layers:
-      - { Ref: CommonLibsLambdaLayer }
-    events:
-      - httpApi:
-          path: /validations/duplicates
-          method: get
+- **Metodo**: GET
+- **Ruta**: /validations/pending
+- **Descripcion**: Retorna todas las validaciones en estado "manual_review". Estas son las que necesitan atencion de un asesor.
 
-  validatePayment:
-    handler: validation_handler.validate_payment
-    layers:
-      - { Ref: CommonLibsLambdaLayer }
-    timeout: 30
+**Body**: No requiere.
 
-  getValidations:
-    handler: validation_handler.get_validations
-    layers:
-      - { Ref: CommonLibsLambdaLayer }
-    events:
-      - httpApi:
-          path: /validations
-          method: get
+---
 
-  getValidationById:
-    handler: validation_handler.get_validation_by_id
-    layers:
-      - { Ref: CommonLibsLambdaLayer }
-    events:
-      - httpApi:
-          path: /validations/{id}
-          method: get
+### 6. manualReview
 
-  getPendingValidations:
-    handler: validation_handler.get_pending_validations
-    layers:
-      - { Ref: CommonLibsLambdaLayer }
-    events:
-      - httpApi:
-          path: /validations/pending
-          method: get
+- **Metodo**: PUT
+- **Ruta**: /validations/{id}/review
+- **Descripcion**: Permite a un asesor aprobar o rechazar una validacion pendiente. Si se aprueba y se incluye notification_id, tambien marca la notificacion como validada. Envia callback a Odoo con el resultado.
 
-  manualReview:
-    handler: validation_handler.manual_review
-    layers:
-      - { Ref: CommonLibsLambdaLayer }
-    events:
-      - httpApi:
-          path: /validations/{id}/review
-          method: put
+**Parametro de ruta**:
 
-resources:
-  Resources:
-    # Tabla de Notificaciones
-    NotificationsTable:
-      Type: AWS::DynamoDB::Table
-      Properties:
-        TableName: ${self:service}-notifications-${sls:stage}
-        BillingMode: PAY_PER_REQUEST
-        AttributeDefinitions:
-          - AttributeName: id
-            AttributeType: S
-          - AttributeName: status
-            AttributeType: S
-          - AttributeName: device_id
-            AttributeType: S
-          - AttributeName: timestamp
-            AttributeType: N
-          - AttributeName: code
-            AttributeType: S
-          - AttributeName: amount
-            AttributeType: N
-        KeySchema:
-          - AttributeName: id
-            KeyType: HASH
-        GlobalSecondaryIndexes:
-          - IndexName: StatusIndex
-            KeySchema:
-              - AttributeName: status
-                KeyType: HASH
-              - AttributeName: timestamp
-                KeyType: RANGE
-            Projection:
-              ProjectionType: ALL
-          - IndexName: DeviceIndex
-            KeySchema:
-              - AttributeName: device_id
-                KeyType: HASH
-              - AttributeName: timestamp
-                KeyType: RANGE
-            Projection:
-              ProjectionType: ALL
-          - IndexName: CodeAmountIndex
-            KeySchema:
-              - AttributeName: code
-                KeyType: HASH
-              - AttributeName: amount
-                KeyType: RANGE
-            Projection:
-              ProjectionType: ALL
-        StreamSpecification:
-          StreamViewType: NEW_AND_OLD_IMAGES
+| Campo | Tipo | Descripcion |
+|---|---|---|
+| id | string | ID de la validacion (UUID) |
 
-    # Tabla de Validaciones
-    ValidationsTable:
-      Type: AWS::DynamoDB::Table
-      Properties:
-        TableName: ${self:service}-validations-${sls:stage}
-        BillingMode: PAY_PER_REQUEST
-        AttributeDefinitions:
-          - AttributeName: id
-            AttributeType: S
-          - AttributeName: validation_status
-            AttributeType: S
-          - AttributeName: created_at
-            AttributeType: N
-          - AttributeName: phone_number
-            AttributeType: S
-        KeySchema:
-          - AttributeName: id
-            KeyType: HASH
-        GlobalSecondaryIndexes:
-          - IndexName: ValidationStatusIndex
-            KeySchema:
-              - AttributeName: validation_status
-                KeyType: HASH
-              - AttributeName: created_at
-                KeyType: RANGE
-            Projection:
-              ProjectionType: ALL
-          - IndexName: PhoneNumberIndex
-            KeySchema:
-              - AttributeName: phone_number
-                KeyType: HASH
-              - AttributeName: created_at
-                KeyType: RANGE
-            Projection:
-              ProjectionType: ALL
+**Body requerido**:
 
-    # Tabla de Whitelist
-    WhitelistTable:
-      Type: AWS::DynamoDB::Table
-      Properties:
-        TableName: ${self:service}-whitelist-${sls:stage}
-        BillingMode: PAY_PER_REQUEST
-        AttributeDefinitions:
-          - AttributeName: phone_number
-            AttributeType: S
-        KeySchema:
-          - AttributeName: phone_number
-            KeyType: HASH
-        TimeToLiveSpecification:
-          AttributeName: ttl
-          Enabled: true
+| Campo | Tipo | Requerido | Descripcion |
+|---|---|---|---|
+| action | string | Si | "approve" o "reject" |
+| notes | string | No | Notas del asesor sobre la decision |
+| notification_id | string | No | ID de la notificacion asociada (para marcarla como validada si se aprueba) |
 
-    # Bucket S3
-    ScreenshotsBucket:
-      Type: AWS::S3::Bucket
-      Properties:
-        BucketName: ${self:service}-screenshots-${sls:stage}
-        PublicAccessBlockConfiguration:
-          BlockPublicAcls: true
-          BlockPublicPolicy: true
-          IgnorePublicAcls: true
-          RestrictPublicBuckets: true
-        LifecycleConfiguration:
-          Rules:
-            - Id: DeleteOldScreenshots
-              Status: Enabled
-              ExpirationInDays: 90
+---
 
-package:
-  patterns:
-    - '!node_modules/**'
-    - '!.venv/**'
-    - '!.git/**'
-    - '!.idea/**'
-    - '!.serverless/**'
-    - '!__pycache__/**'
-    - '!layers/**'
+## Funciones Internas (sin endpoint HTTP)
+
+Estas funciones no tienen ruta HTTP. Se invocan de forma asincrona entre Lambdas o por triggers de AWS.
+
+### 7. processWhatsAppImage
+
+- **Trigger**: Invocacion asincrona desde validateFromOdoo
+- **Timeout**: 60s
+- **Descripcion**: Descarga la imagen del comprobante desde la API de WhatsApp (Facebook Graph API) usando el media_id, la sube al bucket S3 con metadata y crea el registro inicial de validacion en DynamoDB con estado "processing". La subida a S3 dispara automaticamente processScreenshot.
+
+**Payload interno**:
+
+| Campo | Tipo | Descripcion |
+|---|---|---|
+| image_id | string | ID del media de WhatsApp |
+| phone_number | string | Numero de telefono del cliente |
+| sender_name | string | Nombre del remitente |
+| message_id | string | ID del mensaje de WhatsApp (opcional) |
+| nota_venta | string | Numero de orden (opcional) |
+
+---
+
+### 8. processScreenshot
+
+- **Trigger**: Evento S3 (s3:ObjectCreated) en el bucket de screenshots
+- **Timeout**: 60s
+- **Descripcion**: Se activa automaticamente cuando se sube una imagen al bucket S3. Ejecuta OCR con Amazon Textract para extraer el texto del comprobante. Parsea el texto buscando monto (S/ X.XX) y codigo de operacion. Si el OCR falla, marca la validacion como "manual_review" y notifica a Odoo como rechazado. Si tiene exito, invoca validatePayment de forma asincrona.
+
+**Payload**: Evento estandar de S3 (automatico). La metadata del objeto S3 contiene validation_id, phone_number, sender_name y nota_venta.
+
+---
+
+### 9. validatePayment
+
+- **Trigger**: Invocacion asincrona desde processScreenshot
+- **Timeout**: 30s
+- **Descripcion**: Logica de negocio principal. Busca en la tabla de notificaciones una que coincida en codigo y monto. Luego valida que el nombre del remitente coincida. Posibles resultados:
+  - **Validado**: Codigo, monto y nombre coinciden con una notificacion pendiente. Marca ambos registros como validados. Callback a Odoo como "approved".
+  - **Duplicado**: La notificacion ya fue validada previamente. Marca la validacion como "duplicate". Callback a Odoo como "rejected".
+  - **Sin match**: No existe notificacion con ese codigo y monto. Marca como "manual_review". Callback a Odoo como "rejected".
+  - **Nombre no coincide**: Codigo y monto coinciden pero el nombre no. Marca como "manual_review" con referencia a la notificacion candidata. Callback a Odoo como "rejected".
+
+**Payload interno**:
+
+| Campo | Tipo | Descripcion |
+|---|---|---|
+| validation_id | string | ID de la validacion |
+| sender_name | string | Nombre extraido por OCR |
+| amount | string | Monto extraido (se convierte a Decimal) |
+| code | string | Codigo de seguridad u operacion |
+| phone_number | string | Numero de telefono del cliente |
+| operation_number | string | Numero de operacion (opcional) |
+| nota_venta | string | Numero de orden (opcional) |
+
+---
+
+## Callback a Odoo
+
+Todas las funciones que resuelven una validacion envian un POST al endpoint configurado en ODOO_CALLBACK_URL con:
+
+| Campo | Tipo | Descripcion |
+|---|---|---|
+| nota_venta | string | Numero de orden |
+| status | string | "approved" o "rejected" |
+
+Se incluye el header X-Callback-Token con el valor de ODOO_CALLBACK_TOKEN para autenticacion.
+
+---
+
+## Variables de Entorno
+
+| Variable | Fuente | Descripcion |
+|---|---|---|
+| NOTIFICATIONS_TABLE | serverless.yml | Nombre de la tabla DynamoDB de notificaciones (servicio externo) |
+| VALIDATIONS_TABLE | serverless.yml | Nombre de la tabla DynamoDB de validaciones |
+| SCREENSHOTS_BUCKET | serverless.yml | Nombre del bucket S3 para screenshots |
+| WHATSAPP_TOKEN | SSM /zazu/whatsapp_token | Token de la API de WhatsApp Business |
+| ODOO_CALLBACK_URL | SSM /zazu/odoo_callback_url | URL del endpoint callback en Odoo |
+| ODOO_CALLBACK_TOKEN | SSM /zazu/odoo_callback_token | Token de autenticacion para el callback |
+
+---
+
+## Recursos de Infraestructura (creados por este stack)
+
+- **ValidationsTable**: Tabla DynamoDB para registros de validacion
+- **ScreenshotsBucket**: Bucket S3 para almacenar imagenes de comprobantes (auto-eliminacion a 90 dias)
+- **CommonLibs Layer**: Layer con dependencias Python (requests, etc.)
+
+La tabla de notificaciones NO se crea en este stack, ya existe en el servicio de notificaciones desplegado por separado.
