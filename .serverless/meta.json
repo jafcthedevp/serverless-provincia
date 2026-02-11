@@ -4,33 +4,438 @@
     "servicePath": "C:\\Users\\USUARIO\\serverless-zazu\\validacion-zazu\\serverless.yml",
     "serviceConfigFileName": "serverless.yml",
     "service": {
-      "service": "validacion-zazu",
-      "frameworkVersion": "4",
+      "org": "jesusflores123",
+      "app": "zazu-update",
+      "service": "odoo-zazu",
       "provider": {
         "name": "aws",
-        "runtime": "python3.12"
+        "runtime": "python3.12",
+        "region": "us-east-1",
+        "stage": "dev",
+        "memorySize": 256,
+        "timeout": 29,
+        "logRetentionInDays": 14,
+        "environment": {
+          "NOTIFICATIONS_TABLE": "odoo-zazu-notifications-dev",
+          "VALIDATIONS_TABLE": "odoo-zazu-validations-dev",
+          "SCREENSHOTS_BUCKET": "odoo-zazu-screenshots-dev",
+          "WHATSAPP_TOKEN": "<REDACTED>",
+          "ODOO_CALLBACK_URL": "${ssm:/zazu/odoo_callback_url}",
+          "ODOO_CALLBACK_TOKEN": "<REDACTED>"
+        },
+        "iam": {
+          "role": {
+            "statements": [
+              {
+                "Effect": "Allow",
+                "Action": [
+                  "dynamodb:Query",
+                  "dynamodb:Scan",
+                  "dynamodb:GetItem",
+                  "dynamodb:PutItem",
+                  "dynamodb:UpdateItem",
+                  "dynamodb:DeleteItem",
+                  "dynamodb:DescribeTable"
+                ],
+                "Resource": [
+                  "arn:aws:dynamodb:us-east-1:${aws:accountId}:table/odoo-zazu-*",
+                  "arn:aws:dynamodb:us-east-1:${aws:accountId}:table/odoo-zazu-*/index/*"
+                ]
+              },
+              {
+                "Effect": "Allow",
+                "Action": [
+                  "s3:GetObject",
+                  "s3:PutObject",
+                  "s3:DeleteObject",
+                  "s3:ListBucket"
+                ],
+                "Resource": [
+                  "arn:aws:s3:::odoo-zazu-screenshots-dev",
+                  "arn:aws:s3:::odoo-zazu-screenshots-dev/*"
+                ]
+              },
+              {
+                "Effect": "Allow",
+                "Action": [
+                  "textract:DetectDocumentText",
+                  "textract:AnalyzeDocument"
+                ],
+                "Resource": "*"
+              },
+              {
+                "Effect": "Allow",
+                "Action": [
+                  "lambda:InvokeFunction"
+                ],
+                "Resource": [
+                  "arn:aws:lambda:us-east-1:${aws:accountId}:function:odoo-zazu-dev-*"
+                ]
+              }
+            ]
+          }
+        }
+      },
+      "plugins": [
+        "serverless-prune-plugin"
+      ],
+      "custom": {
+        "prune": {
+          "automatic": true,
+          "number": 3
+        }
+      },
+      "layers": {
+        "CommonLibs": {
+          "path": "layers/common",
+          "name": "odoo-zazu-common-libs-dev",
+          "compatibleRuntimes": [
+            "python3.12"
+          ]
+        }
       },
       "functions": {
-        "hello": {
-          "handler": "handler.hello",
+        "validateFromOdoo": {
+          "handler": "validation_handler.validate_from_odoo",
+          "layers": [
+            {
+              "Ref": "CommonLibsLambdaLayer"
+            }
+          ],
           "events": [
             {
               "httpApi": {
-                "path": "/",
+                "path": "/validate-from-odoo",
+                "method": "post"
+              }
+            }
+          ],
+          "timeout": 60
+        },
+        "processWhatsAppImage": {
+          "handler": "validation_handler.process_whatsapp_image",
+          "layers": [
+            {
+              "Ref": "CommonLibsLambdaLayer"
+            }
+          ],
+          "timeout": 60,
+          "events": []
+        },
+        "processScreenshot": {
+          "handler": "validation_handler.process_screenshot",
+          "layers": [
+            {
+              "Ref": "CommonLibsLambdaLayer"
+            }
+          ],
+          "events": [
+            {
+              "s3": {
+                "bucket": "odoo-zazu-screenshots-dev",
+                "event": "s3:ObjectCreated:*",
+                "existing": true
+              }
+            }
+          ],
+          "timeout": 60
+        },
+        "getDuplicateValidations": {
+          "handler": "validation_handler.get_duplicate_validations",
+          "layers": [
+            {
+              "Ref": "CommonLibsLambdaLayer"
+            }
+          ],
+          "events": [
+            {
+              "httpApi": {
+                "path": "/validations/duplicates",
                 "method": "get"
               }
+            }
+          ]
+        },
+        "validatePayment": {
+          "handler": "validation_handler.validate_payment",
+          "layers": [
+            {
+              "Ref": "CommonLibsLambdaLayer"
+            }
+          ],
+          "timeout": 30,
+          "events": []
+        },
+        "getValidations": {
+          "handler": "validation_handler.get_validations",
+          "layers": [
+            {
+              "Ref": "CommonLibsLambdaLayer"
+            }
+          ],
+          "events": [
+            {
+              "httpApi": {
+                "path": "/validations",
+                "method": "get"
+              }
+            }
+          ]
+        },
+        "getValidationById": {
+          "handler": "validation_handler.get_validation_by_id",
+          "layers": [
+            {
+              "Ref": "CommonLibsLambdaLayer"
+            }
+          ],
+          "events": [
+            {
+              "httpApi": {
+                "path": "/validations/{id}",
+                "method": "get"
+              }
+            }
+          ]
+        },
+        "getPendingValidations": {
+          "handler": "validation_handler.get_pending_validations",
+          "layers": [
+            {
+              "Ref": "CommonLibsLambdaLayer"
+            }
+          ],
+          "events": [
+            {
+              "httpApi": {
+                "path": "/validations/pending",
+                "method": "get"
+              }
+            }
+          ]
+        },
+        "manualReview": {
+          "handler": "validation_handler.manual_review",
+          "layers": [
+            {
+              "Ref": "CommonLibsLambdaLayer"
+            }
+          ],
+          "events": [
+            {
+              "httpApi": {
+                "path": "/validations/{id}/review",
+                "method": "put"
+              }
+            }
+          ]
+        }
+      },
+      "resources": {
+        "Resources": {
+          "ValidationsTable": {
+            "Type": "AWS::DynamoDB::Table",
+            "Properties": {
+              "TableName": "odoo-zazu-validations-dev",
+              "BillingMode": "PAY_PER_REQUEST",
+              "AttributeDefinitions": [
+                {
+                  "AttributeName": "id",
+                  "AttributeType": "S"
+                },
+                {
+                  "AttributeName": "validation_status",
+                  "AttributeType": "S"
+                },
+                {
+                  "AttributeName": "created_at",
+                  "AttributeType": "N"
+                },
+                {
+                  "AttributeName": "phone_number",
+                  "AttributeType": "S"
+                }
+              ],
+              "KeySchema": [
+                {
+                  "AttributeName": "id",
+                  "KeyType": "HASH"
+                }
+              ],
+              "GlobalSecondaryIndexes": [
+                {
+                  "IndexName": "ValidationStatusIndex",
+                  "KeySchema": [
+                    {
+                      "AttributeName": "validation_status",
+                      "KeyType": "HASH"
+                    },
+                    {
+                      "AttributeName": "created_at",
+                      "KeyType": "RANGE"
+                    }
+                  ],
+                  "Projection": {
+                    "ProjectionType": "ALL"
+                  }
+                },
+                {
+                  "IndexName": "PhoneNumberIndex",
+                  "KeySchema": [
+                    {
+                      "AttributeName": "phone_number",
+                      "KeyType": "HASH"
+                    },
+                    {
+                      "AttributeName": "created_at",
+                      "KeyType": "RANGE"
+                    }
+                  ],
+                  "Projection": {
+                    "ProjectionType": "ALL"
+                  }
+                }
+              ]
+            }
+          },
+          "ScreenshotsBucket": {
+            "Type": "AWS::S3::Bucket",
+            "Properties": {
+              "BucketName": "odoo-zazu-screenshots-dev",
+              "PublicAccessBlockConfiguration": {
+                "BlockPublicAcls": true,
+                "BlockPublicPolicy": true,
+                "IgnorePublicAcls": true,
+                "RestrictPublicBuckets": true
+              },
+              "LifecycleConfiguration": {
+                "Rules": [
+                  {
+                    "Id": "DeleteOldScreenshots",
+                    "Status": "Enabled",
+                    "ExpirationInDays": 90
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "package": {
+        "patterns": [
+          "!node_modules/**",
+          "!.venv/**",
+          "!.git/**",
+          "!.idea/**",
+          "!.serverless/**",
+          "!__pycache__/**",
+          "!layers/**"
+        ]
+      }
+    },
+    "provider": {
+      "name": "aws",
+      "runtime": "python3.12",
+      "region": "us-east-1",
+      "stage": "dev",
+      "memorySize": 256,
+      "timeout": 29,
+      "logRetentionInDays": 14,
+      "environment": {
+        "NOTIFICATIONS_TABLE": "odoo-zazu-notifications-dev",
+        "VALIDATIONS_TABLE": "odoo-zazu-validations-dev",
+        "SCREENSHOTS_BUCKET": "odoo-zazu-screenshots-dev",
+        "WHATSAPP_TOKEN": "<REDACTED>",
+        "ODOO_CALLBACK_URL": "${ssm:/zazu/odoo_callback_url}",
+        "ODOO_CALLBACK_TOKEN": "<REDACTED>"
+      },
+      "iam": {
+        "role": {
+          "statements": [
+            {
+              "Effect": "Allow",
+              "Action": [
+                "dynamodb:Query",
+                "dynamodb:Scan",
+                "dynamodb:GetItem",
+                "dynamodb:PutItem",
+                "dynamodb:UpdateItem",
+                "dynamodb:DeleteItem",
+                "dynamodb:DescribeTable"
+              ],
+              "Resource": [
+                "arn:aws:dynamodb:us-east-1:${aws:accountId}:table/odoo-zazu-*",
+                "arn:aws:dynamodb:us-east-1:${aws:accountId}:table/odoo-zazu-*/index/*"
+              ]
+            },
+            {
+              "Effect": "Allow",
+              "Action": [
+                "s3:GetObject",
+                "s3:PutObject",
+                "s3:DeleteObject",
+                "s3:ListBucket"
+              ],
+              "Resource": [
+                "arn:aws:s3:::odoo-zazu-screenshots-dev",
+                "arn:aws:s3:::odoo-zazu-screenshots-dev/*"
+              ]
+            },
+            {
+              "Effect": "Allow",
+              "Action": [
+                "textract:DetectDocumentText",
+                "textract:AnalyzeDocument"
+              ],
+              "Resource": "*"
+            },
+            {
+              "Effect": "Allow",
+              "Action": [
+                "lambda:InvokeFunction"
+              ],
+              "Resource": [
+                "arn:aws:lambda:us-east-1:${aws:accountId}:function:odoo-zazu-dev-*"
+              ]
             }
           ]
         }
       }
     },
-    "provider": {
-      "name": "aws",
-      "runtime": "python3.12"
+    "dashboard": {
+      "isEnabledForService": true,
+      "requiredAuthentication": false,
+      "orgFeaturesInUse": {
+        "providers": false,
+        "monitoring": true
+      },
+      "orgObservabilityIntegrations": [
+        {
+          "integrationId": "5hAVNXcMPyFZh8bi3EYgwA",
+          "awsAccountId": "209147851059",
+          "status": "alive"
+        }
+      ],
+      "serviceAppId": "jrjsccjhsjJJn368dx",
+      "serviceProvider": null,
+      "instanceParameters": null
     },
-    "serviceRawFile": "# \"service\" is the name of this project. This will also be added to your AWS resource names.\nservice: validacion-zazu\nframeworkVersion: \"4\"\n\nprovider:\n  name: aws\n  runtime: python3.12\n  # Uncomment to easily set up a custom domain. Read the docs for more details:\n  # https://www.serverless.com/framework/docs/providers/aws/guide/domains\n  # domain: api.example.com\n\nfunctions:\n  hello:\n    handler: handler.hello\n    events:\n      - httpApi:\n          path: /\n          method: get\n",
-    "command": [],
-    "options": {},
+    "error": {
+      "message": "Cannot resolve '${ssm:/zazu/odoo_callback_url}' variable at 'provider.environment.ODOO_CALLBACK_URL'. No value is available for this variable, and no default value was provided. Please check your variable definitions or provide a default value.",
+      "stack": "Error: Cannot resolve '${ssm:/zazu/odoo_callback_url}' variable at 'provider.environment.ODOO_CALLBACK_URL'. No value is available for this variable, and no default value was provided. Please check your variable definitions or provide a default value.\n    at _ResolverManager.resolve (file:///C:/Users/USUARIO/.serverless/releases/4.31.2/package/dist/sf-core.js:925:32358)\n    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)\n    at async #handlePlaceholderNode (file:///C:/Users/USUARIO/.serverless/releases/4.31.2/package/dist/sf-core.js:925:30536)\n    at async file:///C:/Users/USUARIO/.serverless/releases/4.31.2/package/dist/sf-core.js:925:28380\n    at async processNodeAndHandleCompletion (file:///C:/Users/USUARIO/.serverless/releases/4.31.2/package/dist/sf-core.js:925:16765)",
+      "code": "MISSING_VARIABLE_RESULT"
+    },
+    "serviceRawFile": "org: jesusflores123\napp: zazu-update\nservice: odoo-zazu\n\nprovider:\n  name: aws\n  runtime: python3.12\n  region: us-east-1\n  stage: ${opt:stage, 'dev'}\n  memorySize: 256\n  timeout: 29\n  logRetentionInDays: 14\n  environment:\n    NOTIFICATIONS_TABLE: ${self:service}-notifications-${sls:stage}\n    VALIDATIONS_TABLE: ${self:service}-validations-${sls:stage}\n    SCREENSHOTS_BUCKET: ${self:service}-screenshots-${sls:stage}\n    WHATSAPP_TOKEN: ${ssm:/zazu/whatsapp_token}\n\n    ODOO_CALLBACK_URL: ${ssm:/zazu/odoo_callback_url}\n    ODOO_CALLBACK_TOKEN: ${ssm:/zazu/odoo_callback_token}\n\n  iam:\n    role:\n      statements:\n        - Effect: Allow\n          Action:\n            - dynamodb:Query\n            - dynamodb:Scan\n            - dynamodb:GetItem\n            - dynamodb:PutItem\n            - dynamodb:UpdateItem\n            - dynamodb:DeleteItem\n            - dynamodb:DescribeTable\n          Resource:\n            - arn:aws:dynamodb:${aws:region}:${aws:accountId}:table/${self:service}-*\n            - arn:aws:dynamodb:${aws:region}:${aws:accountId}:table/${self:service}-*/index/*\n\n        - Effect: Allow\n          Action:\n            - s3:GetObject\n            - s3:PutObject\n            - s3:DeleteObject\n            - s3:ListBucket\n          Resource:\n            - arn:aws:s3:::${self:service}-screenshots-${sls:stage}\n            - arn:aws:s3:::${self:service}-screenshots-${sls:stage}/*\n\n        - Effect: Allow\n          Action:\n            - textract:DetectDocumentText\n            - textract:AnalyzeDocument\n          Resource: \"*\"\n\n        - Effect: Allow\n          Action:\n            - lambda:InvokeFunction\n          Resource:\n            - arn:aws:lambda:${aws:region}:${aws:accountId}:function:${self:service}-${sls:stage}-*\n\nplugins:\n  - serverless-prune-plugin\n\ncustom:\n  prune:\n    automatic: true\n    number: 3\n\n# ===== DEFINICIÓN DEL LAYER =====\nlayers:\n  CommonLibs:\n    path: layers/common\n    name: ${self:service}-common-libs-${sls:stage}\n    compatibleRuntimes:\n      - python3.12\n\nfunctions:\n  # ===== VALIDACIÓN (Usan validation_handler.py, REQUIEREN LAYER) =====\n  validateFromOdoo:\n    handler: validation_handler.validate_from_odoo\n    layers:\n      - { Ref: CommonLibsLambdaLayer }\n    events:\n      - httpApi:\n          path: /validate-from-odoo\n          method: post\n    timeout: 60\n\n  processWhatsAppImage:\n    handler: validation_handler.process_whatsapp_image\n    layers:\n      - { Ref: CommonLibsLambdaLayer }\n    timeout: 60\n\n  processScreenshot:\n    handler: validation_handler.process_screenshot\n    layers:\n      - { Ref: CommonLibsLambdaLayer }\n    events:\n      - s3:\n          bucket: ${self:service}-screenshots-${sls:stage}\n          event: s3:ObjectCreated:*\n          existing: true\n    timeout: 60\n\n  getDuplicateValidations:\n    handler: validation_handler.get_duplicate_validations\n    layers:\n      - { Ref: CommonLibsLambdaLayer }\n    events:\n      - httpApi:\n          path: /validations/duplicates\n          method: get\n\n  validatePayment:\n    handler: validation_handler.validate_payment\n    layers:\n      - { Ref: CommonLibsLambdaLayer }\n    timeout: 30\n\n  getValidations:\n    handler: validation_handler.get_validations\n    layers:\n      - { Ref: CommonLibsLambdaLayer }\n    events:\n      - httpApi:\n          path: /validations\n          method: get\n\n  getValidationById:\n    handler: validation_handler.get_validation_by_id\n    layers:\n      - { Ref: CommonLibsLambdaLayer }\n    events:\n      - httpApi:\n          path: /validations/{id}\n          method: get\n\n  getPendingValidations:\n    handler: validation_handler.get_pending_validations\n    layers:\n      - { Ref: CommonLibsLambdaLayer }\n    events:\n      - httpApi:\n          path: /validations/pending\n          method: get\n\n  manualReview:\n    handler: validation_handler.manual_review\n    layers:\n      - { Ref: CommonLibsLambdaLayer }\n    events:\n      - httpApi:\n          path: /validations/{id}/review\n          method: put\n\nresources:\n  Resources:\n    # Tabla de Validaciones\n    ValidationsTable:\n      Type: AWS::DynamoDB::Table\n      Properties:\n        TableName: ${self:service}-validations-${sls:stage}\n        BillingMode: PAY_PER_REQUEST\n        AttributeDefinitions:\n          - AttributeName: id\n            AttributeType: S\n          - AttributeName: validation_status\n            AttributeType: S\n          - AttributeName: created_at\n            AttributeType: N\n          - AttributeName: phone_number\n            AttributeType: S\n        KeySchema:\n          - AttributeName: id\n            KeyType: HASH\n        GlobalSecondaryIndexes:\n          - IndexName: ValidationStatusIndex\n            KeySchema:\n              - AttributeName: validation_status\n                KeyType: HASH\n              - AttributeName: created_at\n                KeyType: RANGE\n            Projection:\n              ProjectionType: ALL\n          - IndexName: PhoneNumberIndex\n            KeySchema:\n              - AttributeName: phone_number\n                KeyType: HASH\n              - AttributeName: created_at\n                KeyType: RANGE\n            Projection:\n              ProjectionType: ALL\n\n    # Bucket S3\n    ScreenshotsBucket:\n      Type: AWS::S3::Bucket\n      Properties:\n        BucketName: ${self:service}-screenshots-${sls:stage}\n        PublicAccessBlockConfiguration:\n          BlockPublicAcls: true\n          BlockPublicPolicy: true\n          IgnorePublicAcls: true\n          RestrictPublicBuckets: true\n        LifecycleConfiguration:\n          Rules:\n            - Id: DeleteOldScreenshots\n              Status: Enabled\n              ExpirationInDays: 90\n\npackage:\n  patterns:\n    - '!node_modules/**'\n    - '!.venv/**'\n    - '!.git/**'\n    - '!.idea/**'\n    - '!.serverless/**'\n    - '!__pycache__/**'\n    - '!layers/**'\n",
+    "command": [
+      "deploy"
+    ],
+    "options": {
+      "stage": "dev"
+    },
+    "orgId": "df199eb2-3f94-4ad4-9503-fd687c6e2fa8",
+    "orgName": "jesusflores123",
+    "userId": "wGyMWXlcjM5tTqMkP5",
+    "userName": "jesusflores123",
     "serviceProviderAwsCfStackId": null,
     "serviceProviderAwsCfStackCreated": null,
     "serviceProviderAwsCfStackUpdated": null,

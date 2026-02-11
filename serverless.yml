@@ -1,11 +1,11 @@
 org: jesusflores123
 app: zazu-update
-service: validacion-zazu
+service: odoo-zazu
 
 provider:
   name: aws
   runtime: python3.12
-  region: us-west-1
+  region: us-east-1
   stage: ${opt:stage, 'dev'}
   memorySize: 256
   timeout: 29
@@ -14,7 +14,6 @@ provider:
     NOTIFICATIONS_TABLE: ${self:service}-notifications-${sls:stage}
     VALIDATIONS_TABLE: ${self:service}-validations-${sls:stage}
     SCREENSHOTS_BUCKET: ${self:service}-screenshots-${sls:stage}
-    z|
     WHATSAPP_TOKEN: ${ssm:/zazu/whatsapp_token}
 
     ODOO_CALLBACK_URL: ${ssm:/zazu/odoo_callback_url}
