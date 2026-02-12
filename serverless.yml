@@ -11,13 +11,12 @@ provider:
   timeout: 29
   logRetentionInDays: 14
   environment:
-    NOTIFICATIONS_TABLE: ${self:service}-notifications-${sls:stage}
-    VALIDATIONS_TABLE: ${self:service}-validations-${sls:stage}
-    SCREENSHOTS_BUCKET: ${self:service}-screenshots-${sls:stage}
-    WHATSAPP_TOKEN: ${ssm:/zazu/whatsapp_token}
-
-    ODOO_CALLBACK_URL: ${ssm:/zazu/odoo_callback_url}
-    ODOO_CALLBACK_TOKEN: ${ssm:/zazu/odoo_callback_token}
+    NOTIFICATIONS_TABLE: zazu-notifications-prod
+    VALIDATIONS_TABLE: zazu-validations-prod
+    SCREENSHOTS_BUCKET: zazu-screenshots-prod
+    WHATSAPP_TOKEN: ${ssm:/zazu2/odoo_whatsapp_token, ''}
+    ODOO_CALLBACK_URL: ${ssm:/zazu2/odoo_callback_url, ''}
+    ODOO_CALLBACK_TOKEN: ${ssm:/zazu2/odoo_callback_token, ''}
 
   iam:
     role:
@@ -32,8 +31,10 @@ provider:
             - dynamodb:DeleteItem
             - dynamodb:DescribeTable
           Resource:
-            - arn:aws:dynamodb:${aws:region}:${aws:accountId}:table/${self:service}-*
-            - arn:aws:dynamodb:${aws:region}:${aws:accountId}:table/${self:service}-*/index/*
+            - arn:aws:dynamodb:${aws:region}:${aws:accountId}:table/zazu-validations-prod
+            - arn:aws:dynamodb:${aws:region}:${aws:accountId}:table/zazu-validations-prod/index/*
+            - arn:aws:dynamodb:${aws:region}:${aws:accountId}:table/zazu-notifications-prod
+            - arn:aws:dynamodb:${aws:region}:${aws:accountId}:table/zazu-notifications-prod/index/*
 
         - Effect: Allow
           Action:
@@ -42,8 +43,8 @@ provider:
             - s3:DeleteObject
             - s3:ListBucket
           Resource:
-            - arn:aws:s3:::${self:service}-screenshots-${sls:stage}
-            - arn:aws:s3:::${self:service}-screenshots-${sls:stage}/*
+            - arn:aws:s3:::zazu-screenshots-prod
+            - arn:aws:s3:::zazu-screenshots-prod/*
 
         - Effect: Allow
           Action:
@@ -97,7 +98,7 @@ functions:
       - { Ref: CommonLibsLambdaLayer }
     events:
       - s3:
-          bucket: ${self:service}-screenshots-${sls:stage}
+          bucket: zazu-screenshots-prod
           event: s3:ObjectCreated:*
           existing: true
     timeout: 60
@@ -152,60 +153,6 @@ functions:
       - httpApi:
           path: /validations/{id}/review
           method: put
-
-resources:
-  Resources:
-    # Tabla de Validaciones
-    ValidationsTable:
-      Type: AWS::DynamoDB::Table
-      Properties:
-        TableName: ${self:service}-validations-${sls:stage}
-        BillingMode: PAY_PER_REQUEST
-        AttributeDefinitions:
-          - AttributeName: id
-            AttributeType: S
-          - AttributeName: validation_status
-            AttributeType: S
-          - AttributeName: created_at
-            AttributeType: N
-          - AttributeName: phone_number
-            AttributeType: S
-        KeySchema:
-          - AttributeName: id
-            KeyType: HASH
-        GlobalSecondaryIndexes:
-          - IndexName: ValidationStatusIndex
-            KeySchema:
-              - AttributeName: validation_status
-                KeyType: HASH
-              - AttributeName: created_at
-                KeyType: RANGE
-            Projection:
-              ProjectionType: ALL
-          - IndexName: PhoneNumberIndex
-            KeySchema:
-              - AttributeName: phone_number
-                KeyType: HASH
-              - AttributeName: created_at
-                KeyType: RANGE
-            Projection:
-              ProjectionType: ALL
-
-    # Bucket S3
-    ScreenshotsBucket:
-      Type: AWS::S3::Bucket
-      Properties:
-        BucketName: ${self:service}-screenshots-${sls:stage}
-        PublicAccessBlockConfiguration:
-          BlockPublicAcls: true
-          BlockPublicPolicy: true
-          IgnorePublicAcls: true
-          RestrictPublicBuckets: true
-        LifecycleConfiguration:
-          Rules:
-            - Id: DeleteOldScreenshots
-              Status: Enabled
-              ExpirationInDays: 90
 
 package:
   patterns:
