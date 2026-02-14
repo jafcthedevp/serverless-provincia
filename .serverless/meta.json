@@ -1,6 +1,6 @@
 {
   "C:\\Users\\USUARIO\\serverless-zazu\\validacion-zazu\\serverless.yml": {
-    "versionFramework": "4.31.2",
+    "versionFramework": "4.32.0",
     "servicePath": "C:\\Users\\USUARIO\\serverless-zazu\\validacion-zazu\\serverless.yml",
     "serviceConfigFileName": "serverless.yml",
     "service": {
@@ -11,16 +11,16 @@
         "name": "aws",
         "runtime": "python3.12",
         "region": "us-east-1",
-        "stage": "dev",
+        "stage": "prod",
         "memorySize": 256,
         "timeout": 29,
         "logRetentionInDays": 14,
         "environment": {
-          "NOTIFICATIONS_TABLE": "odoo-zazu-notifications-dev",
-          "VALIDATIONS_TABLE": "odoo-zazu-validations-dev",
-          "SCREENSHOTS_BUCKET": "odoo-zazu-screenshots-dev",
+          "NOTIFICATIONS_TABLE": "zazu-notifications-prod",
+          "VALIDATIONS_TABLE": "zazu-validations-prod",
+          "SCREENSHOTS_BUCKET": "zazu-screenshots-prod",
           "WHATSAPP_TOKEN": "<REDACTED>",
-          "ODOO_CALLBACK_URL": "${ssm:/zazu/odoo_callback_url}",
+          "ODOO_CALLBACK_URL": "https://zazuexpress2-staging-main-28468195.dev.odoo.com/whatsapp/payment/validate",
           "ODOO_CALLBACK_TOKEN": "<REDACTED>"
         },
         "iam": {
@@ -38,8 +38,10 @@
                   "dynamodb:DescribeTable"
                 ],
                 "Resource": [
-                  "arn:aws:dynamodb:us-east-1:${aws:accountId}:table/odoo-zazu-*",
-                  "arn:aws:dynamodb:us-east-1:${aws:accountId}:table/odoo-zazu-*/index/*"
+                  "arn:aws:dynamodb:us-east-1:015903983606:table/zazu-validations-prod",
+                  "arn:aws:dynamodb:us-east-1:015903983606:table/zazu-validations-prod/index/*",
+                  "arn:aws:dynamodb:us-east-1:015903983606:table/zazu-notifications-prod",
+                  "arn:aws:dynamodb:us-east-1:015903983606:table/zazu-notifications-prod/index/*"
                 ]
               },
               {
@@ -51,8 +53,8 @@
                   "s3:ListBucket"
                 ],
                 "Resource": [
-                  "arn:aws:s3:::odoo-zazu-screenshots-dev",
-                  "arn:aws:s3:::odoo-zazu-screenshots-dev/*"
+                  "arn:aws:s3:::zazu-screenshots-prod",
+                  "arn:aws:s3:::zazu-screenshots-prod/*"
                 ]
               },
               {
@@ -68,257 +70,1346 @@
                 "Action": [
                   "lambda:InvokeFunction"
                 ],
-                "Resource": [
-                  "arn:aws:lambda:us-east-1:${aws:accountId}:function:odoo-zazu-dev-*"
-                ]
+                "Resource": "arn:aws:lambda:us-east-1:015903983606:function:odoo-zazu-prod-*"
               }
             ]
           }
-        }
+        },
+        "versionFunctions": true,
+        "compiledCloudFormationTemplate": {
+          "AWSTemplateFormatVersion": "2010-09-09",
+          "Description": "The AWS CloudFormation template for this Serverless application",
+          "Resources": {
+            "ValidateFromOdooLogGroup": {
+              "Type": "AWS::Logs::LogGroup",
+              "Properties": {
+                "LogGroupName": "/aws/lambda/odoo-zazu-prod-validateFromOdoo",
+                "RetentionInDays": 14
+              }
+            },
+            "ProcessWhatsAppImageLogGroup": {
+              "Type": "AWS::Logs::LogGroup",
+              "Properties": {
+                "LogGroupName": "/aws/lambda/odoo-zazu-prod-processWhatsAppImage",
+                "RetentionInDays": 14
+              }
+            },
+            "ProcessScreenshotLogGroup": {
+              "Type": "AWS::Logs::LogGroup",
+              "Properties": {
+                "LogGroupName": "/aws/lambda/odoo-zazu-prod-processScreenshot",
+                "RetentionInDays": 14
+              }
+            },
+            "GetDuplicateValidationsLogGroup": {
+              "Type": "AWS::Logs::LogGroup",
+              "Properties": {
+                "LogGroupName": "/aws/lambda/odoo-zazu-prod-getDuplicateValidations",
+                "RetentionInDays": 14
+              }
+            },
+            "ValidatePaymentLogGroup": {
+              "Type": "AWS::Logs::LogGroup",
+              "Properties": {
+                "LogGroupName": "/aws/lambda/odoo-zazu-prod-validatePayment",
+                "RetentionInDays": 14
+              }
+            },
+            "GetValidationsLogGroup": {
+              "Type": "AWS::Logs::LogGroup",
+              "Properties": {
+                "LogGroupName": "/aws/lambda/odoo-zazu-prod-getValidations",
+                "RetentionInDays": 14
+              }
+            },
+            "GetValidationByIdLogGroup": {
+              "Type": "AWS::Logs::LogGroup",
+              "Properties": {
+                "LogGroupName": "/aws/lambda/odoo-zazu-prod-getValidationById",
+                "RetentionInDays": 14
+              }
+            },
+            "GetPendingValidationsLogGroup": {
+              "Type": "AWS::Logs::LogGroup",
+              "Properties": {
+                "LogGroupName": "/aws/lambda/odoo-zazu-prod-getPendingValidations",
+                "RetentionInDays": 14
+              }
+            },
+            "ManualReviewLogGroup": {
+              "Type": "AWS::Logs::LogGroup",
+              "Properties": {
+                "LogGroupName": "/aws/lambda/odoo-zazu-prod-manualReview",
+                "RetentionInDays": 14
+              }
+            },
+            "IamRoleLambdaExecution": {
+              "Type": "AWS::IAM::Role",
+              "Properties": {
+                "AssumeRolePolicyDocument": {
+                  "Version": "2012-10-17",
+                  "Statement": [
+                    {
+                      "Effect": "Allow",
+                      "Principal": {
+                        "Service": [
+                          "lambda.amazonaws.com"
+                        ]
+                      },
+                      "Action": [
+                        "sts:AssumeRole"
+                      ]
+                    }
+                  ]
+                },
+                "Policies": [
+                  {
+                    "PolicyName": {
+                      "Fn::Join": [
+                        "-",
+                        [
+                          "odoo-zazu",
+                          "prod",
+                          "lambda"
+                        ]
+                      ]
+                    },
+                    "PolicyDocument": {
+                      "Version": "2012-10-17",
+                      "Statement": [
+                        {
+                          "Effect": "Allow",
+                          "Action": [
+                            "logs:CreateLogStream",
+                            "logs:CreateLogGroup",
+                            "logs:TagResource"
+                          ],
+                          "Resource": [
+                            {
+                              "Fn::Sub": "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/odoo-zazu-prod*:*"
+                            }
+                          ]
+                        },
+                        {
+                          "Effect": "Allow",
+                          "Action": [
+                            "logs:PutLogEvents"
+                          ],
+                          "Resource": [
+                            {
+                              "Fn::Sub": "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/odoo-zazu-prod*:*:*"
+                            }
+                          ]
+                        },
+                        {
+                          "Effect": "Allow",
+                          "Action": [
+                            "dynamodb:Query",
+                            "dynamodb:Scan",
+                            "dynamodb:GetItem",
+                            "dynamodb:PutItem",
+                            "dynamodb:UpdateItem",
+                            "dynamodb:DeleteItem",
+                            "dynamodb:DescribeTable"
+                          ],
+                          "Resource": [
+                            "arn:aws:dynamodb:us-east-1:015903983606:table/zazu-validations-prod",
+                            "arn:aws:dynamodb:us-east-1:015903983606:table/zazu-validations-prod/index/*",
+                            "arn:aws:dynamodb:us-east-1:015903983606:table/zazu-notifications-prod",
+                            "arn:aws:dynamodb:us-east-1:015903983606:table/zazu-notifications-prod/index/*"
+                          ]
+                        },
+                        {
+                          "Effect": "Allow",
+                          "Action": [
+                            "s3:GetObject",
+                            "s3:PutObject",
+                            "s3:DeleteObject",
+                            "s3:ListBucket"
+                          ],
+                          "Resource": [
+                            "arn:aws:s3:::zazu-screenshots-prod",
+                            "arn:aws:s3:::zazu-screenshots-prod/*"
+                          ]
+                        },
+                        {
+                          "Effect": "Allow",
+                          "Action": [
+                            "textract:DetectDocumentText",
+                            "textract:AnalyzeDocument"
+                          ],
+                          "Resource": "*"
+                        },
+                        {
+                          "Effect": "Allow",
+                          "Action": [
+                            "lambda:InvokeFunction"
+                          ],
+                          "Resource": "arn:aws:lambda:us-east-1:015903983606:function:odoo-zazu-prod-*"
+                        }
+                      ]
+                    }
+                  }
+                ],
+                "Path": "/",
+                "RoleName": {
+                  "Fn::Join": [
+                    "-",
+                    [
+                      "odoo-zazu",
+                      "prod",
+                      {
+                        "Ref": "AWS::Region"
+                      },
+                      "lambdaRole"
+                    ]
+                  ]
+                }
+              }
+            },
+            "ValidateFromOdooLambdaFunction": {
+              "Type": "AWS::Lambda::Function",
+              "Properties": {
+                "Code": {
+                  "S3Bucket": "serverless-framework-deployments-us-east-1-ce1848ae-0327",
+                  "S3Key": "serverless/odoo-zazu/prod/1771002830673-2026-02-13T17:13:50.673Z/odoo-zazu.zip"
+                },
+                "Handler": "validation_handler.validate_from_odoo",
+                "Runtime": "python3.12",
+                "FunctionName": "odoo-zazu-prod-validateFromOdoo",
+                "MemorySize": 256,
+                "Timeout": 29,
+                "Environment": {
+                  "Variables": {
+                    "NOTIFICATIONS_TABLE": "zazu-notifications-prod",
+                    "VALIDATIONS_TABLE": "zazu-validations-prod",
+                    "SCREENSHOTS_BUCKET": "zazu-screenshots-prod",
+                    "WHATSAPP_TOKEN": "<REDACTED>",
+                    "ODOO_CALLBACK_URL": "https://zazuexpress2-staging-main-28468195.dev.odoo.com/whatsapp/payment/validate",
+                    "ODOO_CALLBACK_TOKEN": "<REDACTED>"
+                  }
+                },
+                "Role": {
+                  "Fn::GetAtt": [
+                    "IamRoleLambdaExecution",
+                    "Arn"
+                  ]
+                }
+              },
+              "DependsOn": [
+                "ValidateFromOdooLogGroup"
+              ]
+            },
+            "ProcessWhatsAppImageLambdaFunction": {
+              "Type": "AWS::Lambda::Function",
+              "Properties": {
+                "Code": {
+                  "S3Bucket": "serverless-framework-deployments-us-east-1-ce1848ae-0327",
+                  "S3Key": "serverless/odoo-zazu/prod/1771002830673-2026-02-13T17:13:50.673Z/odoo-zazu.zip"
+                },
+                "Handler": "validation_handler.process_whatsapp_image",
+                "Runtime": "python3.12",
+                "FunctionName": "odoo-zazu-prod-processWhatsAppImage",
+                "MemorySize": 256,
+                "Timeout": 29,
+                "Environment": {
+                  "Variables": {
+                    "NOTIFICATIONS_TABLE": "zazu-notifications-prod",
+                    "VALIDATIONS_TABLE": "zazu-validations-prod",
+                    "SCREENSHOTS_BUCKET": "zazu-screenshots-prod",
+                    "WHATSAPP_TOKEN": "<REDACTED>",
+                    "ODOO_CALLBACK_URL": "https://zazuexpress2-staging-main-28468195.dev.odoo.com/whatsapp/payment/validate",
+                    "ODOO_CALLBACK_TOKEN": "<REDACTED>"
+                  }
+                },
+                "Role": {
+                  "Fn::GetAtt": [
+                    "IamRoleLambdaExecution",
+                    "Arn"
+                  ]
+                }
+              },
+              "DependsOn": [
+                "ProcessWhatsAppImageLogGroup"
+              ]
+            },
+            "ProcessScreenshotLambdaFunction": {
+              "Type": "AWS::Lambda::Function",
+              "Properties": {
+                "Code": {
+                  "S3Bucket": "serverless-framework-deployments-us-east-1-ce1848ae-0327",
+                  "S3Key": "serverless/odoo-zazu/prod/1771002830673-2026-02-13T17:13:50.673Z/odoo-zazu.zip"
+                },
+                "Handler": "validation_handler.process_screenshot",
+                "Runtime": "python3.12",
+                "FunctionName": "odoo-zazu-prod-processScreenshot",
+                "MemorySize": 256,
+                "Timeout": 29,
+                "Environment": {
+                  "Variables": {
+                    "NOTIFICATIONS_TABLE": "zazu-notifications-prod",
+                    "VALIDATIONS_TABLE": "zazu-validations-prod",
+                    "SCREENSHOTS_BUCKET": "zazu-screenshots-prod",
+                    "WHATSAPP_TOKEN": "<REDACTED>",
+                    "ODOO_CALLBACK_URL": "https://zazuexpress2-staging-main-28468195.dev.odoo.com/whatsapp/payment/validate",
+                    "ODOO_CALLBACK_TOKEN": "<REDACTED>"
+                  }
+                },
+                "Role": {
+                  "Fn::GetAtt": [
+                    "IamRoleLambdaExecution",
+                    "Arn"
+                  ]
+                }
+              },
+              "DependsOn": [
+                "ProcessScreenshotLogGroup"
+              ]
+            },
+            "GetDuplicateValidationsLambdaFunction": {
+              "Type": "AWS::Lambda::Function",
+              "Properties": {
+                "Code": {
+                  "S3Bucket": "serverless-framework-deployments-us-east-1-ce1848ae-0327",
+                  "S3Key": "serverless/odoo-zazu/prod/1771002830673-2026-02-13T17:13:50.673Z/odoo-zazu.zip"
+                },
+                "Handler": "validation_handler.get_duplicate_validations",
+                "Runtime": "python3.12",
+                "FunctionName": "odoo-zazu-prod-getDuplicateValidations",
+                "MemorySize": 256,
+                "Timeout": 29,
+                "Environment": {
+                  "Variables": {
+                    "NOTIFICATIONS_TABLE": "zazu-notifications-prod",
+                    "VALIDATIONS_TABLE": "zazu-validations-prod",
+                    "SCREENSHOTS_BUCKET": "zazu-screenshots-prod",
+                    "WHATSAPP_TOKEN": "<REDACTED>",
+                    "ODOO_CALLBACK_URL": "https://zazuexpress2-staging-main-28468195.dev.odoo.com/whatsapp/payment/validate",
+                    "ODOO_CALLBACK_TOKEN": "<REDACTED>"
+                  }
+                },
+                "Role": {
+                  "Fn::GetAtt": [
+                    "IamRoleLambdaExecution",
+                    "Arn"
+                  ]
+                }
+              },
+              "DependsOn": [
+                "GetDuplicateValidationsLogGroup"
+              ]
+            },
+            "ValidatePaymentLambdaFunction": {
+              "Type": "AWS::Lambda::Function",
+              "Properties": {
+                "Code": {
+                  "S3Bucket": "serverless-framework-deployments-us-east-1-ce1848ae-0327",
+                  "S3Key": "serverless/odoo-zazu/prod/1771002830673-2026-02-13T17:13:50.673Z/odoo-zazu.zip"
+                },
+                "Handler": "validation_handler.validate_payment",
+                "Runtime": "python3.12",
+                "FunctionName": "odoo-zazu-prod-validatePayment",
+                "MemorySize": 256,
+                "Timeout": 29,
+                "Environment": {
+                  "Variables": {
+                    "NOTIFICATIONS_TABLE": "zazu-notifications-prod",
+                    "VALIDATIONS_TABLE": "zazu-validations-prod",
+                    "SCREENSHOTS_BUCKET": "zazu-screenshots-prod",
+                    "WHATSAPP_TOKEN": "<REDACTED>",
+                    "ODOO_CALLBACK_URL": "https://zazuexpress2-staging-main-28468195.dev.odoo.com/whatsapp/payment/validate",
+                    "ODOO_CALLBACK_TOKEN": "<REDACTED>"
+                  }
+                },
+                "Role": {
+                  "Fn::GetAtt": [
+                    "IamRoleLambdaExecution",
+                    "Arn"
+                  ]
+                }
+              },
+              "DependsOn": [
+                "ValidatePaymentLogGroup"
+              ]
+            },
+            "GetValidationsLambdaFunction": {
+              "Type": "AWS::Lambda::Function",
+              "Properties": {
+                "Code": {
+                  "S3Bucket": "serverless-framework-deployments-us-east-1-ce1848ae-0327",
+                  "S3Key": "serverless/odoo-zazu/prod/1771002830673-2026-02-13T17:13:50.673Z/odoo-zazu.zip"
+                },
+                "Handler": "validation_handler.get_validations",
+                "Runtime": "python3.12",
+                "FunctionName": "odoo-zazu-prod-getValidations",
+                "MemorySize": 256,
+                "Timeout": 29,
+                "Environment": {
+                  "Variables": {
+                    "NOTIFICATIONS_TABLE": "zazu-notifications-prod",
+                    "VALIDATIONS_TABLE": "zazu-validations-prod",
+                    "SCREENSHOTS_BUCKET": "zazu-screenshots-prod",
+                    "WHATSAPP_TOKEN": "<REDACTED>",
+                    "ODOO_CALLBACK_URL": "https://zazuexpress2-staging-main-28468195.dev.odoo.com/whatsapp/payment/validate",
+                    "ODOO_CALLBACK_TOKEN": "<REDACTED>"
+                  }
+                },
+                "Role": {
+                  "Fn::GetAtt": [
+                    "IamRoleLambdaExecution",
+                    "Arn"
+                  ]
+                }
+              },
+              "DependsOn": [
+                "GetValidationsLogGroup"
+              ]
+            },
+            "GetValidationByIdLambdaFunction": {
+              "Type": "AWS::Lambda::Function",
+              "Properties": {
+                "Code": {
+                  "S3Bucket": "serverless-framework-deployments-us-east-1-ce1848ae-0327",
+                  "S3Key": "serverless/odoo-zazu/prod/1771002830673-2026-02-13T17:13:50.673Z/odoo-zazu.zip"
+                },
+                "Handler": "validation_handler.get_validation_by_id",
+                "Runtime": "python3.12",
+                "FunctionName": "odoo-zazu-prod-getValidationById",
+                "MemorySize": 256,
+                "Timeout": 29,
+                "Environment": {
+                  "Variables": {
+                    "NOTIFICATIONS_TABLE": "zazu-notifications-prod",
+                    "VALIDATIONS_TABLE": "zazu-validations-prod",
+                    "SCREENSHOTS_BUCKET": "zazu-screenshots-prod",
+                    "WHATSAPP_TOKEN": "<REDACTED>",
+                    "ODOO_CALLBACK_URL": "https://zazuexpress2-staging-main-28468195.dev.odoo.com/whatsapp/payment/validate",
+                    "ODOO_CALLBACK_TOKEN": "<REDACTED>"
+                  }
+                },
+                "Role": {
+                  "Fn::GetAtt": [
+                    "IamRoleLambdaExecution",
+                    "Arn"
+                  ]
+                }
+              },
+              "DependsOn": [
+                "GetValidationByIdLogGroup"
+              ]
+            },
+            "GetPendingValidationsLambdaFunction": {
+              "Type": "AWS::Lambda::Function",
+              "Properties": {
+                "Code": {
+                  "S3Bucket": "serverless-framework-deployments-us-east-1-ce1848ae-0327",
+                  "S3Key": "serverless/odoo-zazu/prod/1771002830673-2026-02-13T17:13:50.673Z/odoo-zazu.zip"
+                },
+                "Handler": "validation_handler.get_pending_validations",
+                "Runtime": "python3.12",
+                "FunctionName": "odoo-zazu-prod-getPendingValidations",
+                "MemorySize": 256,
+                "Timeout": 29,
+                "Environment": {
+                  "Variables": {
+                    "NOTIFICATIONS_TABLE": "zazu-notifications-prod",
+                    "VALIDATIONS_TABLE": "zazu-validations-prod",
+                    "SCREENSHOTS_BUCKET": "zazu-screenshots-prod",
+                    "WHATSAPP_TOKEN": "<REDACTED>",
+                    "ODOO_CALLBACK_URL": "https://zazuexpress2-staging-main-28468195.dev.odoo.com/whatsapp/payment/validate",
+                    "ODOO_CALLBACK_TOKEN": "<REDACTED>"
+                  }
+                },
+                "Role": {
+                  "Fn::GetAtt": [
+                    "IamRoleLambdaExecution",
+                    "Arn"
+                  ]
+                }
+              },
+              "DependsOn": [
+                "GetPendingValidationsLogGroup"
+              ]
+            },
+            "ManualReviewLambdaFunction": {
+              "Type": "AWS::Lambda::Function",
+              "Properties": {
+                "Code": {
+                  "S3Bucket": "serverless-framework-deployments-us-east-1-ce1848ae-0327",
+                  "S3Key": "serverless/odoo-zazu/prod/1771002830673-2026-02-13T17:13:50.673Z/odoo-zazu.zip"
+                },
+                "Handler": "validation_handler.manual_review",
+                "Runtime": "python3.12",
+                "FunctionName": "odoo-zazu-prod-manualReview",
+                "MemorySize": 256,
+                "Timeout": 29,
+                "Environment": {
+                  "Variables": {
+                    "NOTIFICATIONS_TABLE": "zazu-notifications-prod",
+                    "VALIDATIONS_TABLE": "zazu-validations-prod",
+                    "SCREENSHOTS_BUCKET": "zazu-screenshots-prod",
+                    "WHATSAPP_TOKEN": "<REDACTED>",
+                    "ODOO_CALLBACK_URL": "https://zazuexpress2-staging-main-28468195.dev.odoo.com/whatsapp/payment/validate",
+                    "ODOO_CALLBACK_TOKEN": "<REDACTED>"
+                  }
+                },
+                "Role": {
+                  "Fn::GetAtt": [
+                    "IamRoleLambdaExecution",
+                    "Arn"
+                  ]
+                }
+              },
+              "DependsOn": [
+                "ManualReviewLogGroup"
+              ]
+            },
+            "ValidateFromOdooLambdaVersionTXNwvbA6iyTuwrBMebHdAX4w0DPla9WVxQsfbD7X8": {
+              "Type": "AWS::Lambda::Version",
+              "DeletionPolicy": "Retain",
+              "Properties": {
+                "FunctionName": {
+                  "Ref": "ValidateFromOdooLambdaFunction"
+                },
+                "CodeSha256": "0GT2310b6tDCKYjilPNj7rFLG6ZWDtgsI7jNEu2w2Uk="
+              }
+            },
+            "ProcessWhatsAppImageLambdaVersionvDZ6iuwrXmXHlSVEDVvh7scFphQEp6zLMcFPDNXgs": {
+              "Type": "AWS::Lambda::Version",
+              "DeletionPolicy": "Retain",
+              "Properties": {
+                "FunctionName": {
+                  "Ref": "ProcessWhatsAppImageLambdaFunction"
+                },
+                "CodeSha256": "0GT2310b6tDCKYjilPNj7rFLG6ZWDtgsI7jNEu2w2Uk="
+              }
+            },
+            "ProcessScreenshotLambdaVersionfLCo7ikRKgtH0pdoienWZq1WBy2xEFNtf8vKjz8": {
+              "Type": "AWS::Lambda::Version",
+              "DeletionPolicy": "Retain",
+              "Properties": {
+                "FunctionName": {
+                  "Ref": "ProcessScreenshotLambdaFunction"
+                },
+                "CodeSha256": "0GT2310b6tDCKYjilPNj7rFLG6ZWDtgsI7jNEu2w2Uk="
+              }
+            },
+            "GetDuplicateValidationsLambdaVersionJ9RdZzEbCqr5E2IVaS2pLAbsXi9GeFDTU5noyCAh1f8": {
+              "Type": "AWS::Lambda::Version",
+              "DeletionPolicy": "Retain",
+              "Properties": {
+                "FunctionName": {
+                  "Ref": "GetDuplicateValidationsLambdaFunction"
+                },
+                "CodeSha256": "0GT2310b6tDCKYjilPNj7rFLG6ZWDtgsI7jNEu2w2Uk="
+              }
+            },
+            "ValidatePaymentLambdaVersiongkKxDdtOZTPBds7V0DeG8L75jbOsUo54UuRkrJWWfOc": {
+              "Type": "AWS::Lambda::Version",
+              "DeletionPolicy": "Retain",
+              "Properties": {
+                "FunctionName": {
+                  "Ref": "ValidatePaymentLambdaFunction"
+                },
+                "CodeSha256": "0GT2310b6tDCKYjilPNj7rFLG6ZWDtgsI7jNEu2w2Uk="
+              }
+            },
+            "GetValidationsLambdaVersionWRE9pyts1SNMzc9ExmGb2QTXzfzdD3CbaTpILcrdqU": {
+              "Type": "AWS::Lambda::Version",
+              "DeletionPolicy": "Retain",
+              "Properties": {
+                "FunctionName": {
+                  "Ref": "GetValidationsLambdaFunction"
+                },
+                "CodeSha256": "0GT2310b6tDCKYjilPNj7rFLG6ZWDtgsI7jNEu2w2Uk="
+              }
+            },
+            "GetValidationByIdLambdaVersionp8GYPhZhw4NSz4IEsAfmjAbywFvK6Bz9sddwWyfeM": {
+              "Type": "AWS::Lambda::Version",
+              "DeletionPolicy": "Retain",
+              "Properties": {
+                "FunctionName": {
+                  "Ref": "GetValidationByIdLambdaFunction"
+                },
+                "CodeSha256": "0GT2310b6tDCKYjilPNj7rFLG6ZWDtgsI7jNEu2w2Uk="
+              }
+            },
+            "GetPendingValidationsLambdaVersionLSVKwPfpxe9gz4EJ9rJ3MWxBFejHDfcQGsbVU2cQ": {
+              "Type": "AWS::Lambda::Version",
+              "DeletionPolicy": "Retain",
+              "Properties": {
+                "FunctionName": {
+                  "Ref": "GetPendingValidationsLambdaFunction"
+                },
+                "CodeSha256": "0GT2310b6tDCKYjilPNj7rFLG6ZWDtgsI7jNEu2w2Uk="
+              }
+            },
+            "ManualReviewLambdaVersionD3kJszbg6okCod62EHDGHUty8TBbZ9MrZzMYcoF8": {
+              "Type": "AWS::Lambda::Version",
+              "DeletionPolicy": "Retain",
+              "Properties": {
+                "FunctionName": {
+                  "Ref": "ManualReviewLambdaFunction"
+                },
+                "CodeSha256": "0GT2310b6tDCKYjilPNj7rFLG6ZWDtgsI7jNEu2w2Uk="
+              }
+            },
+            "HttpApi": {
+              "Type": "AWS::ApiGatewayV2::Api",
+              "Properties": {
+                "Name": "prod-odoo-zazu",
+                "ProtocolType": "HTTP"
+              }
+            },
+            "HttpApiStage": {
+              "Type": "AWS::ApiGatewayV2::Stage",
+              "Properties": {
+                "ApiId": {
+                  "Ref": "HttpApi"
+                },
+                "StageName": "$default",
+                "AutoDeploy": true,
+                "DefaultRouteSettings": {
+                  "DetailedMetricsEnabled": false
+                }
+              }
+            },
+            "ValidateFromOdooLambdaPermissionHttpApi": {
+              "Type": "AWS::Lambda::Permission",
+              "Properties": {
+                "FunctionName": {
+                  "Fn::GetAtt": [
+                    "ValidateFromOdooLambdaFunction",
+                    "Arn"
+                  ]
+                },
+                "Action": "lambda:InvokeFunction",
+                "Principal": "apigateway.amazonaws.com",
+                "SourceArn": {
+                  "Fn::Join": [
+                    "",
+                    [
+                      "arn:",
+                      {
+                        "Ref": "AWS::Partition"
+                      },
+                      ":execute-api:",
+                      {
+                        "Ref": "AWS::Region"
+                      },
+                      ":",
+                      {
+                        "Ref": "AWS::AccountId"
+                      },
+                      ":",
+                      {
+                        "Ref": "HttpApi"
+                      },
+                      "/*"
+                    ]
+                  ]
+                }
+              }
+            },
+            "HttpApiIntegrationValidateFromOdoo": {
+              "Type": "AWS::ApiGatewayV2::Integration",
+              "Properties": {
+                "ApiId": {
+                  "Ref": "HttpApi"
+                },
+                "IntegrationType": "AWS_PROXY",
+                "IntegrationUri": {
+                  "Fn::GetAtt": [
+                    "ValidateFromOdooLambdaFunction",
+                    "Arn"
+                  ]
+                },
+                "PayloadFormatVersion": "2.0",
+                "TimeoutInMillis": 30000
+              }
+            },
+            "HttpApiRoutePostValidateDashfromDashodoo": {
+              "Type": "AWS::ApiGatewayV2::Route",
+              "Properties": {
+                "ApiId": {
+                  "Ref": "HttpApi"
+                },
+                "RouteKey": "POST /validate-from-odoo",
+                "Target": {
+                  "Fn::Join": [
+                    "/",
+                    [
+                      "integrations",
+                      {
+                        "Ref": "HttpApiIntegrationValidateFromOdoo"
+                      }
+                    ]
+                  ]
+                }
+              },
+              "DependsOn": "HttpApiIntegrationValidateFromOdoo"
+            },
+            "GetDuplicateValidationsLambdaPermissionHttpApi": {
+              "Type": "AWS::Lambda::Permission",
+              "Properties": {
+                "FunctionName": {
+                  "Fn::GetAtt": [
+                    "GetDuplicateValidationsLambdaFunction",
+                    "Arn"
+                  ]
+                },
+                "Action": "lambda:InvokeFunction",
+                "Principal": "apigateway.amazonaws.com",
+                "SourceArn": {
+                  "Fn::Join": [
+                    "",
+                    [
+                      "arn:",
+                      {
+                        "Ref": "AWS::Partition"
+                      },
+                      ":execute-api:",
+                      {
+                        "Ref": "AWS::Region"
+                      },
+                      ":",
+                      {
+                        "Ref": "AWS::AccountId"
+                      },
+                      ":",
+                      {
+                        "Ref": "HttpApi"
+                      },
+                      "/*"
+                    ]
+                  ]
+                }
+              }
+            },
+            "HttpApiIntegrationGetDuplicateValidations": {
+              "Type": "AWS::ApiGatewayV2::Integration",
+              "Properties": {
+                "ApiId": {
+                  "Ref": "HttpApi"
+                },
+                "IntegrationType": "AWS_PROXY",
+                "IntegrationUri": {
+                  "Fn::GetAtt": [
+                    "GetDuplicateValidationsLambdaFunction",
+                    "Arn"
+                  ]
+                },
+                "PayloadFormatVersion": "2.0",
+                "TimeoutInMillis": 30000
+              }
+            },
+            "HttpApiRouteGetValidationsDuplicates": {
+              "Type": "AWS::ApiGatewayV2::Route",
+              "Properties": {
+                "ApiId": {
+                  "Ref": "HttpApi"
+                },
+                "RouteKey": "GET /validations/duplicates",
+                "Target": {
+                  "Fn::Join": [
+                    "/",
+                    [
+                      "integrations",
+                      {
+                        "Ref": "HttpApiIntegrationGetDuplicateValidations"
+                      }
+                    ]
+                  ]
+                }
+              },
+              "DependsOn": "HttpApiIntegrationGetDuplicateValidations"
+            },
+            "GetValidationsLambdaPermissionHttpApi": {
+              "Type": "AWS::Lambda::Permission",
+              "Properties": {
+                "FunctionName": {
+                  "Fn::GetAtt": [
+                    "GetValidationsLambdaFunction",
+                    "Arn"
+                  ]
+                },
+                "Action": "lambda:InvokeFunction",
+                "Principal": "apigateway.amazonaws.com",
+                "SourceArn": {
+                  "Fn::Join": [
+                    "",
+                    [
+                      "arn:",
+                      {
+                        "Ref": "AWS::Partition"
+                      },
+                      ":execute-api:",
+                      {
+                        "Ref": "AWS::Region"
+                      },
+                      ":",
+                      {
+                        "Ref": "AWS::AccountId"
+                      },
+                      ":",
+                      {
+                        "Ref": "HttpApi"
+                      },
+                      "/*"
+                    ]
+                  ]
+                }
+              }
+            },
+            "HttpApiIntegrationGetValidations": {
+              "Type": "AWS::ApiGatewayV2::Integration",
+              "Properties": {
+                "ApiId": {
+                  "Ref": "HttpApi"
+                },
+                "IntegrationType": "AWS_PROXY",
+                "IntegrationUri": {
+                  "Fn::GetAtt": [
+                    "GetValidationsLambdaFunction",
+                    "Arn"
+                  ]
+                },
+                "PayloadFormatVersion": "2.0",
+                "TimeoutInMillis": 30000
+              }
+            },
+            "HttpApiRouteGetValidations": {
+              "Type": "AWS::ApiGatewayV2::Route",
+              "Properties": {
+                "ApiId": {
+                  "Ref": "HttpApi"
+                },
+                "RouteKey": "GET /validations",
+                "Target": {
+                  "Fn::Join": [
+                    "/",
+                    [
+                      "integrations",
+                      {
+                        "Ref": "HttpApiIntegrationGetValidations"
+                      }
+                    ]
+                  ]
+                }
+              },
+              "DependsOn": "HttpApiIntegrationGetValidations"
+            },
+            "GetValidationByIdLambdaPermissionHttpApi": {
+              "Type": "AWS::Lambda::Permission",
+              "Properties": {
+                "FunctionName": {
+                  "Fn::GetAtt": [
+                    "GetValidationByIdLambdaFunction",
+                    "Arn"
+                  ]
+                },
+                "Action": "lambda:InvokeFunction",
+                "Principal": "apigateway.amazonaws.com",
+                "SourceArn": {
+                  "Fn::Join": [
+                    "",
+                    [
+                      "arn:",
+                      {
+                        "Ref": "AWS::Partition"
+                      },
+                      ":execute-api:",
+                      {
+                        "Ref": "AWS::Region"
+                      },
+                      ":",
+                      {
+                        "Ref": "AWS::AccountId"
+                      },
+                      ":",
+                      {
+                        "Ref": "HttpApi"
+                      },
+                      "/*"
+                    ]
+                  ]
+                }
+              }
+            },
+            "HttpApiIntegrationGetValidationById": {
+              "Type": "AWS::ApiGatewayV2::Integration",
+              "Properties": {
+                "ApiId": {
+                  "Ref": "HttpApi"
+                },
+                "IntegrationType": "AWS_PROXY",
+                "IntegrationUri": {
+                  "Fn::GetAtt": [
+                    "GetValidationByIdLambdaFunction",
+                    "Arn"
+                  ]
+                },
+                "PayloadFormatVersion": "2.0",
+                "TimeoutInMillis": 30000
+              }
+            },
+            "HttpApiRouteGetValidationsIdVar": {
+              "Type": "AWS::ApiGatewayV2::Route",
+              "Properties": {
+                "ApiId": {
+                  "Ref": "HttpApi"
+                },
+                "RouteKey": "GET /validations/{id}",
+                "Target": {
+                  "Fn::Join": [
+                    "/",
+                    [
+                      "integrations",
+                      {
+                        "Ref": "HttpApiIntegrationGetValidationById"
+                      }
+                    ]
+                  ]
+                }
+              },
+              "DependsOn": "HttpApiIntegrationGetValidationById"
+            },
+            "GetPendingValidationsLambdaPermissionHttpApi": {
+              "Type": "AWS::Lambda::Permission",
+              "Properties": {
+                "FunctionName": {
+                  "Fn::GetAtt": [
+                    "GetPendingValidationsLambdaFunction",
+                    "Arn"
+                  ]
+                },
+                "Action": "lambda:InvokeFunction",
+                "Principal": "apigateway.amazonaws.com",
+                "SourceArn": {
+                  "Fn::Join": [
+                    "",
+                    [
+                      "arn:",
+                      {
+                        "Ref": "AWS::Partition"
+                      },
+                      ":execute-api:",
+                      {
+                        "Ref": "AWS::Region"
+                      },
+                      ":",
+                      {
+                        "Ref": "AWS::AccountId"
+                      },
+                      ":",
+                      {
+                        "Ref": "HttpApi"
+                      },
+                      "/*"
+                    ]
+                  ]
+                }
+              }
+            },
+            "HttpApiIntegrationGetPendingValidations": {
+              "Type": "AWS::ApiGatewayV2::Integration",
+              "Properties": {
+                "ApiId": {
+                  "Ref": "HttpApi"
+                },
+                "IntegrationType": "AWS_PROXY",
+                "IntegrationUri": {
+                  "Fn::GetAtt": [
+                    "GetPendingValidationsLambdaFunction",
+                    "Arn"
+                  ]
+                },
+                "PayloadFormatVersion": "2.0",
+                "TimeoutInMillis": 30000
+              }
+            },
+            "HttpApiRouteGetValidationsPending": {
+              "Type": "AWS::ApiGatewayV2::Route",
+              "Properties": {
+                "ApiId": {
+                  "Ref": "HttpApi"
+                },
+                "RouteKey": "GET /validations/pending",
+                "Target": {
+                  "Fn::Join": [
+                    "/",
+                    [
+                      "integrations",
+                      {
+                        "Ref": "HttpApiIntegrationGetPendingValidations"
+                      }
+                    ]
+                  ]
+                }
+              },
+              "DependsOn": "HttpApiIntegrationGetPendingValidations"
+            },
+            "ManualReviewLambdaPermissionHttpApi": {
+              "Type": "AWS::Lambda::Permission",
+              "Properties": {
+                "FunctionName": {
+                  "Fn::GetAtt": [
+                    "ManualReviewLambdaFunction",
+                    "Arn"
+                  ]
+                },
+                "Action": "lambda:InvokeFunction",
+                "Principal": "apigateway.amazonaws.com",
+                "SourceArn": {
+                  "Fn::Join": [
+                    "",
+                    [
+                      "arn:",
+                      {
+                        "Ref": "AWS::Partition"
+                      },
+                      ":execute-api:",
+                      {
+                        "Ref": "AWS::Region"
+                      },
+                      ":",
+                      {
+                        "Ref": "AWS::AccountId"
+                      },
+                      ":",
+                      {
+                        "Ref": "HttpApi"
+                      },
+                      "/*"
+                    ]
+                  ]
+                }
+              }
+            },
+            "HttpApiIntegrationManualReview": {
+              "Type": "AWS::ApiGatewayV2::Integration",
+              "Properties": {
+                "ApiId": {
+                  "Ref": "HttpApi"
+                },
+                "IntegrationType": "AWS_PROXY",
+                "IntegrationUri": {
+                  "Fn::GetAtt": [
+                    "ManualReviewLambdaFunction",
+                    "Arn"
+                  ]
+                },
+                "PayloadFormatVersion": "2.0",
+                "TimeoutInMillis": 30000
+              }
+            },
+            "HttpApiRoutePutValidationsIdVarReview": {
+              "Type": "AWS::ApiGatewayV2::Route",
+              "Properties": {
+                "ApiId": {
+                  "Ref": "HttpApi"
+                },
+                "RouteKey": "PUT /validations/{id}/review",
+                "Target": {
+                  "Fn::Join": [
+                    "/",
+                    [
+                      "integrations",
+                      {
+                        "Ref": "HttpApiIntegrationManualReview"
+                      }
+                    ]
+                  ]
+                }
+              },
+              "DependsOn": "HttpApiIntegrationManualReview"
+            }
+          },
+          "Outputs": {
+            "ServerlessDeploymentBucketName": {
+              "Value": "serverless-framework-deployments-us-east-1-ce1848ae-0327",
+              "Export": {
+                "Name": "sls-odoo-zazu-prod-ServerlessDeploymentBucketName"
+              }
+            },
+            "ValidateFromOdooLambdaFunctionQualifiedArn": {
+              "Description": "Current Lambda function version",
+              "Value": {
+                "Ref": "ValidateFromOdooLambdaVersionTXNwvbA6iyTuwrBMebHdAX4w0DPla9WVxQsfbD7X8"
+              },
+              "Export": {
+                "Name": "sls-odoo-zazu-prod-ValidateFromOdooLambdaFunctionQualifiedArn"
+              }
+            },
+            "ProcessWhatsAppImageLambdaFunctionQualifiedArn": {
+              "Description": "Current Lambda function version",
+              "Value": {
+                "Ref": "ProcessWhatsAppImageLambdaVersionvDZ6iuwrXmXHlSVEDVvh7scFphQEp6zLMcFPDNXgs"
+              },
+              "Export": {
+                "Name": "sls-odoo-zazu-prod-ProcessWhatsAppImageLambdaFunctionQualifiedArn"
+              }
+            },
+            "ProcessScreenshotLambdaFunctionQualifiedArn": {
+              "Description": "Current Lambda function version",
+              "Value": {
+                "Ref": "ProcessScreenshotLambdaVersionfLCo7ikRKgtH0pdoienWZq1WBy2xEFNtf8vKjz8"
+              },
+              "Export": {
+                "Name": "sls-odoo-zazu-prod-ProcessScreenshotLambdaFunctionQualifiedArn"
+              }
+            },
+            "GetDuplicateValidationsLambdaFunctionQualifiedArn": {
+              "Description": "Current Lambda function version",
+              "Value": {
+                "Ref": "GetDuplicateValidationsLambdaVersionJ9RdZzEbCqr5E2IVaS2pLAbsXi9GeFDTU5noyCAh1f8"
+              },
+              "Export": {
+                "Name": "sls-odoo-zazu-prod-GetDuplicateValidationsLambdaFunctionQualifiedArn"
+              }
+            },
+            "ValidatePaymentLambdaFunctionQualifiedArn": {
+              "Description": "Current Lambda function version",
+              "Value": {
+                "Ref": "ValidatePaymentLambdaVersiongkKxDdtOZTPBds7V0DeG8L75jbOsUo54UuRkrJWWfOc"
+              },
+              "Export": {
+                "Name": "sls-odoo-zazu-prod-ValidatePaymentLambdaFunctionQualifiedArn"
+              }
+            },
+            "GetValidationsLambdaFunctionQualifiedArn": {
+              "Description": "Current Lambda function version",
+              "Value": {
+                "Ref": "GetValidationsLambdaVersionWRE9pyts1SNMzc9ExmGb2QTXzfzdD3CbaTpILcrdqU"
+              },
+              "Export": {
+                "Name": "sls-odoo-zazu-prod-GetValidationsLambdaFunctionQualifiedArn"
+              }
+            },
+            "GetValidationByIdLambdaFunctionQualifiedArn": {
+              "Description": "Current Lambda function version",
+              "Value": {
+                "Ref": "GetValidationByIdLambdaVersionp8GYPhZhw4NSz4IEsAfmjAbywFvK6Bz9sddwWyfeM"
+              },
+              "Export": {
+                "Name": "sls-odoo-zazu-prod-GetValidationByIdLambdaFunctionQualifiedArn"
+              }
+            },
+            "GetPendingValidationsLambdaFunctionQualifiedArn": {
+              "Description": "Current Lambda function version",
+              "Value": {
+                "Ref": "GetPendingValidationsLambdaVersionLSVKwPfpxe9gz4EJ9rJ3MWxBFejHDfcQGsbVU2cQ"
+              },
+              "Export": {
+                "Name": "sls-odoo-zazu-prod-GetPendingValidationsLambdaFunctionQualifiedArn"
+              }
+            },
+            "ManualReviewLambdaFunctionQualifiedArn": {
+              "Description": "Current Lambda function version",
+              "Value": {
+                "Ref": "ManualReviewLambdaVersionD3kJszbg6okCod62EHDGHUty8TBbZ9MrZzMYcoF8"
+              },
+              "Export": {
+                "Name": "sls-odoo-zazu-prod-ManualReviewLambdaFunctionQualifiedArn"
+              }
+            },
+            "HttpApiId": {
+              "Description": "Id of the HTTP API",
+              "Value": {
+                "Ref": "HttpApi"
+              },
+              "Export": {
+                "Name": "sls-odoo-zazu-prod-HttpApiId"
+              }
+            },
+            "HttpApiUrl": {
+              "Description": "URL of the HTTP API",
+              "Value": {
+                "Fn::Join": [
+                  "",
+                  [
+                    "https://",
+                    {
+                      "Ref": "HttpApi"
+                    },
+                    ".execute-api.",
+                    {
+                      "Ref": "AWS::Region"
+                    },
+                    ".",
+                    {
+                      "Ref": "AWS::URLSuffix"
+                    }
+                  ]
+                ]
+              },
+              "Export": {
+                "Name": "sls-odoo-zazu-prod-HttpApiUrl"
+              }
+            }
+          }
+        },
+        "vpc": {}
       },
-      "plugins": [
-        "serverless-prune-plugin"
-      ],
       "custom": {
         "prune": {
           "automatic": true,
           "number": 3
         }
       },
-      "layers": {
-        "CommonLibs": {
-          "path": "layers/common",
-          "name": "odoo-zazu-common-libs-dev",
-          "compatibleRuntimes": [
-            "python3.12"
-          ]
-        }
-      },
       "functions": {
         "validateFromOdoo": {
           "handler": "validation_handler.validate_from_odoo",
-          "layers": [
-            {
-              "Ref": "CommonLibsLambdaLayer"
-            }
-          ],
           "events": [
             {
               "httpApi": {
                 "path": "/validate-from-odoo",
                 "method": "post"
-              }
+              },
+              "resolvedMethod": "POST",
+              "resolvedPath": "/validate-from-odoo"
             }
           ],
-          "timeout": 60
+          "timeout": 29,
+          "name": "odoo-zazu-prod-validateFromOdoo",
+          "package": {},
+          "memory": 256,
+          "runtime": "python3.12",
+          "vpc": {},
+          "versionLogicalId": "ValidateFromOdooLambdaVersionTXNwvbA6iyTuwrBMebHdAX4w0DPla9WVxQsfbD7X8"
         },
         "processWhatsAppImage": {
           "handler": "validation_handler.process_whatsapp_image",
-          "layers": [
-            {
-              "Ref": "CommonLibsLambdaLayer"
-            }
-          ],
-          "timeout": 60,
-          "events": []
+          "timeout": 29,
+          "events": [],
+          "name": "odoo-zazu-prod-processWhatsAppImage",
+          "package": {},
+          "memory": 256,
+          "runtime": "python3.12",
+          "vpc": {},
+          "versionLogicalId": "ProcessWhatsAppImageLambdaVersionvDZ6iuwrXmXHlSVEDVvh7scFphQEp6zLMcFPDNXgs"
         },
         "processScreenshot": {
           "handler": "validation_handler.process_screenshot",
-          "layers": [
-            {
-              "Ref": "CommonLibsLambdaLayer"
-            }
-          ],
-          "events": [
-            {
-              "s3": {
-                "bucket": "odoo-zazu-screenshots-dev",
-                "event": "s3:ObjectCreated:*",
-                "existing": true
-              }
-            }
-          ],
-          "timeout": 60
+          "timeout": 29,
+          "events": [],
+          "name": "odoo-zazu-prod-processScreenshot",
+          "package": {},
+          "memory": 256,
+          "runtime": "python3.12",
+          "vpc": {},
+          "versionLogicalId": "ProcessScreenshotLambdaVersionfLCo7ikRKgtH0pdoienWZq1WBy2xEFNtf8vKjz8"
         },
         "getDuplicateValidations": {
           "handler": "validation_handler.get_duplicate_validations",
-          "layers": [
-            {
-              "Ref": "CommonLibsLambdaLayer"
-            }
-          ],
           "events": [
             {
               "httpApi": {
                 "path": "/validations/duplicates",
                 "method": "get"
-              }
+              },
+              "resolvedMethod": "GET",
+              "resolvedPath": "/validations/duplicates"
             }
-          ]
+          ],
+          "name": "odoo-zazu-prod-getDuplicateValidations",
+          "package": {},
+          "memory": 256,
+          "timeout": 29,
+          "runtime": "python3.12",
+          "vpc": {},
+          "versionLogicalId": "GetDuplicateValidationsLambdaVersionJ9RdZzEbCqr5E2IVaS2pLAbsXi9GeFDTU5noyCAh1f8"
         },
         "validatePayment": {
           "handler": "validation_handler.validate_payment",
-          "layers": [
-            {
-              "Ref": "CommonLibsLambdaLayer"
-            }
-          ],
-          "timeout": 30,
-          "events": []
+          "timeout": 29,
+          "events": [],
+          "name": "odoo-zazu-prod-validatePayment",
+          "package": {},
+          "memory": 256,
+          "runtime": "python3.12",
+          "vpc": {},
+          "versionLogicalId": "ValidatePaymentLambdaVersiongkKxDdtOZTPBds7V0DeG8L75jbOsUo54UuRkrJWWfOc"
         },
         "getValidations": {
           "handler": "validation_handler.get_validations",
-          "layers": [
-            {
-              "Ref": "CommonLibsLambdaLayer"
-            }
-          ],
           "events": [
             {
               "httpApi": {
                 "path": "/validations",
                 "method": "get"
-              }
+              },
+              "resolvedMethod": "GET",
+              "resolvedPath": "/validations"
             }
-          ]
+          ],
+          "name": "odoo-zazu-prod-getValidations",
+          "package": {},
+          "memory": 256,
+          "timeout": 29,
+          "runtime": "python3.12",
+          "vpc": {},
+          "versionLogicalId": "GetValidationsLambdaVersionWRE9pyts1SNMzc9ExmGb2QTXzfzdD3CbaTpILcrdqU"
         },
         "getValidationById": {
           "handler": "validation_handler.get_validation_by_id",
-          "layers": [
-            {
-              "Ref": "CommonLibsLambdaLayer"
-            }
-          ],
           "events": [
             {
               "httpApi": {
                 "path": "/validations/{id}",
                 "method": "get"
-              }
+              },
+              "resolvedMethod": "GET",
+              "resolvedPath": "/validations/{id}"
             }
-          ]
+          ],
+          "name": "odoo-zazu-prod-getValidationById",
+          "package": {},
+          "memory": 256,
+          "timeout": 29,
+          "runtime": "python3.12",
+          "vpc": {},
+          "versionLogicalId": "GetValidationByIdLambdaVersionp8GYPhZhw4NSz4IEsAfmjAbywFvK6Bz9sddwWyfeM"
         },
         "getPendingValidations": {
           "handler": "validation_handler.get_pending_validations",
-          "layers": [
-            {
-              "Ref": "CommonLibsLambdaLayer"
-            }
-          ],
           "events": [
             {
               "httpApi": {
                 "path": "/validations/pending",
                 "method": "get"
-              }
+              },
+              "resolvedMethod": "GET",
+              "resolvedPath": "/validations/pending"
             }
-          ]
+          ],
+          "name": "odoo-zazu-prod-getPendingValidations",
+          "package": {},
+          "memory": 256,
+          "timeout": 29,
+          "runtime": "python3.12",
+          "vpc": {},
+          "versionLogicalId": "GetPendingValidationsLambdaVersionLSVKwPfpxe9gz4EJ9rJ3MWxBFejHDfcQGsbVU2cQ"
         },
         "manualReview": {
           "handler": "validation_handler.manual_review",
-          "layers": [
-            {
-              "Ref": "CommonLibsLambdaLayer"
-            }
-          ],
           "events": [
             {
               "httpApi": {
                 "path": "/validations/{id}/review",
                 "method": "put"
-              }
-            }
-          ]
-        }
-      },
-      "resources": {
-        "Resources": {
-          "ValidationsTable": {
-            "Type": "AWS::DynamoDB::Table",
-            "Properties": {
-              "TableName": "odoo-zazu-validations-dev",
-              "BillingMode": "PAY_PER_REQUEST",
-              "AttributeDefinitions": [
-                {
-                  "AttributeName": "id",
-                  "AttributeType": "S"
-                },
-                {
-                  "AttributeName": "validation_status",
-                  "AttributeType": "S"
-                },
-                {
-                  "AttributeName": "created_at",
-                  "AttributeType": "N"
-                },
-                {
-                  "AttributeName": "phone_number",
-                  "AttributeType": "S"
-                }
-              ],
-              "KeySchema": [
-                {
-                  "AttributeName": "id",
-                  "KeyType": "HASH"
-                }
-              ],
-              "GlobalSecondaryIndexes": [
-                {
-                  "IndexName": "ValidationStatusIndex",
-                  "KeySchema": [
-                    {
-                      "AttributeName": "validation_status",
-                      "KeyType": "HASH"
-                    },
-                    {
-                      "AttributeName": "created_at",
-                      "KeyType": "RANGE"
-                    }
-                  ],
-                  "Projection": {
-                    "ProjectionType": "ALL"
-                  }
-                },
-                {
-                  "IndexName": "PhoneNumberIndex",
-                  "KeySchema": [
-                    {
-                      "AttributeName": "phone_number",
-                      "KeyType": "HASH"
-                    },
-                    {
-                      "AttributeName": "created_at",
-                      "KeyType": "RANGE"
-                    }
-                  ],
-                  "Projection": {
-                    "ProjectionType": "ALL"
-                  }
-                }
-              ]
-            }
-          },
-          "ScreenshotsBucket": {
-            "Type": "AWS::S3::Bucket",
-            "Properties": {
-              "BucketName": "odoo-zazu-screenshots-dev",
-              "PublicAccessBlockConfiguration": {
-                "BlockPublicAcls": true,
-                "BlockPublicPolicy": true,
-                "IgnorePublicAcls": true,
-                "RestrictPublicBuckets": true
               },
-              "LifecycleConfiguration": {
-                "Rules": [
-                  {
-                    "Id": "DeleteOldScreenshots",
-                    "Status": "Enabled",
-                    "ExpirationInDays": 90
-                  }
-                ]
-              }
+              "resolvedMethod": "PUT",
+              "resolvedPath": "/validations/{id}/review"
             }
-          }
+          ],
+          "name": "odoo-zazu-prod-manualReview",
+          "package": {},
+          "memory": 256,
+          "timeout": 29,
+          "runtime": "python3.12",
+          "vpc": {},
+          "versionLogicalId": "ManualReviewLambdaVersionD3kJszbg6okCod62EHDGHUty8TBbZ9MrZzMYcoF8"
         }
       },
       "package": {
@@ -327,26 +1418,28 @@
           "!.venv/**",
           "!.git/**",
           "!.idea/**",
-          "!.serverless/**",
-          "!__pycache__/**",
-          "!layers/**"
-        ]
+          "!__pycache__/**"
+        ],
+        "artifactsS3KeyDirname": "serverless/odoo-zazu/prod/code-artifacts",
+        "deploymentBucket": "serverless-framework-deployments-us-east-1-ce1848ae-0327",
+        "artifact": "C:\\Users\\USUARIO\\serverless-zazu\\validacion-zazu\\.serverless\\odoo-zazu.zip",
+        "artifactDirectoryName": "serverless/odoo-zazu/prod/1771002830673-2026-02-13T17:13:50.673Z"
       }
     },
     "provider": {
       "name": "aws",
       "runtime": "python3.12",
       "region": "us-east-1",
-      "stage": "dev",
+      "stage": "prod",
       "memorySize": 256,
       "timeout": 29,
       "logRetentionInDays": 14,
       "environment": {
-        "NOTIFICATIONS_TABLE": "odoo-zazu-notifications-dev",
-        "VALIDATIONS_TABLE": "odoo-zazu-validations-dev",
-        "SCREENSHOTS_BUCKET": "odoo-zazu-screenshots-dev",
+        "NOTIFICATIONS_TABLE": "zazu-notifications-prod",
+        "VALIDATIONS_TABLE": "zazu-validations-prod",
+        "SCREENSHOTS_BUCKET": "zazu-screenshots-prod",
         "WHATSAPP_TOKEN": "<REDACTED>",
-        "ODOO_CALLBACK_URL": "${ssm:/zazu/odoo_callback_url}",
+        "ODOO_CALLBACK_URL": "https://zazuexpress2-staging-main-28468195.dev.odoo.com/whatsapp/payment/validate",
         "ODOO_CALLBACK_TOKEN": "<REDACTED>"
       },
       "iam": {
@@ -364,8 +1457,10 @@
                 "dynamodb:DescribeTable"
               ],
               "Resource": [
-                "arn:aws:dynamodb:us-east-1:${aws:accountId}:table/odoo-zazu-*",
-                "arn:aws:dynamodb:us-east-1:${aws:accountId}:table/odoo-zazu-*/index/*"
+                "arn:aws:dynamodb:us-east-1:015903983606:table/zazu-validations-prod",
+                "arn:aws:dynamodb:us-east-1:015903983606:table/zazu-validations-prod/index/*",
+                "arn:aws:dynamodb:us-east-1:015903983606:table/zazu-notifications-prod",
+                "arn:aws:dynamodb:us-east-1:015903983606:table/zazu-notifications-prod/index/*"
               ]
             },
             {
@@ -377,8 +1472,8 @@
                 "s3:ListBucket"
               ],
               "Resource": [
-                "arn:aws:s3:::odoo-zazu-screenshots-dev",
-                "arn:aws:s3:::odoo-zazu-screenshots-dev/*"
+                "arn:aws:s3:::zazu-screenshots-prod",
+                "arn:aws:s3:::zazu-screenshots-prod/*"
               ]
             },
             {
@@ -394,13 +1489,1186 @@
               "Action": [
                 "lambda:InvokeFunction"
               ],
-              "Resource": [
-                "arn:aws:lambda:us-east-1:${aws:accountId}:function:odoo-zazu-dev-*"
-              ]
+              "Resource": "arn:aws:lambda:us-east-1:015903983606:function:odoo-zazu-prod-*"
             }
           ]
         }
-      }
+      },
+      "versionFunctions": true,
+      "compiledCloudFormationTemplate": {
+        "AWSTemplateFormatVersion": "2010-09-09",
+        "Description": "The AWS CloudFormation template for this Serverless application",
+        "Resources": {
+          "ValidateFromOdooLogGroup": {
+            "Type": "AWS::Logs::LogGroup",
+            "Properties": {
+              "LogGroupName": "/aws/lambda/odoo-zazu-prod-validateFromOdoo",
+              "RetentionInDays": 14
+            }
+          },
+          "ProcessWhatsAppImageLogGroup": {
+            "Type": "AWS::Logs::LogGroup",
+            "Properties": {
+              "LogGroupName": "/aws/lambda/odoo-zazu-prod-processWhatsAppImage",
+              "RetentionInDays": 14
+            }
+          },
+          "ProcessScreenshotLogGroup": {
+            "Type": "AWS::Logs::LogGroup",
+            "Properties": {
+              "LogGroupName": "/aws/lambda/odoo-zazu-prod-processScreenshot",
+              "RetentionInDays": 14
+            }
+          },
+          "GetDuplicateValidationsLogGroup": {
+            "Type": "AWS::Logs::LogGroup",
+            "Properties": {
+              "LogGroupName": "/aws/lambda/odoo-zazu-prod-getDuplicateValidations",
+              "RetentionInDays": 14
+            }
+          },
+          "ValidatePaymentLogGroup": {
+            "Type": "AWS::Logs::LogGroup",
+            "Properties": {
+              "LogGroupName": "/aws/lambda/odoo-zazu-prod-validatePayment",
+              "RetentionInDays": 14
+            }
+          },
+          "GetValidationsLogGroup": {
+            "Type": "AWS::Logs::LogGroup",
+            "Properties": {
+              "LogGroupName": "/aws/lambda/odoo-zazu-prod-getValidations",
+              "RetentionInDays": 14
+            }
+          },
+          "GetValidationByIdLogGroup": {
+            "Type": "AWS::Logs::LogGroup",
+            "Properties": {
+              "LogGroupName": "/aws/lambda/odoo-zazu-prod-getValidationById",
+              "RetentionInDays": 14
+            }
+          },
+          "GetPendingValidationsLogGroup": {
+            "Type": "AWS::Logs::LogGroup",
+            "Properties": {
+              "LogGroupName": "/aws/lambda/odoo-zazu-prod-getPendingValidations",
+              "RetentionInDays": 14
+            }
+          },
+          "ManualReviewLogGroup": {
+            "Type": "AWS::Logs::LogGroup",
+            "Properties": {
+              "LogGroupName": "/aws/lambda/odoo-zazu-prod-manualReview",
+              "RetentionInDays": 14
+            }
+          },
+          "IamRoleLambdaExecution": {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+              "AssumeRolePolicyDocument": {
+                "Version": "2012-10-17",
+                "Statement": [
+                  {
+                    "Effect": "Allow",
+                    "Principal": {
+                      "Service": [
+                        "lambda.amazonaws.com"
+                      ]
+                    },
+                    "Action": [
+                      "sts:AssumeRole"
+                    ]
+                  }
+                ]
+              },
+              "Policies": [
+                {
+                  "PolicyName": {
+                    "Fn::Join": [
+                      "-",
+                      [
+                        "odoo-zazu",
+                        "prod",
+                        "lambda"
+                      ]
+                    ]
+                  },
+                  "PolicyDocument": {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                      {
+                        "Effect": "Allow",
+                        "Action": [
+                          "logs:CreateLogStream",
+                          "logs:CreateLogGroup",
+                          "logs:TagResource"
+                        ],
+                        "Resource": [
+                          {
+                            "Fn::Sub": "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/odoo-zazu-prod*:*"
+                          }
+                        ]
+                      },
+                      {
+                        "Effect": "Allow",
+                        "Action": [
+                          "logs:PutLogEvents"
+                        ],
+                        "Resource": [
+                          {
+                            "Fn::Sub": "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/odoo-zazu-prod*:*:*"
+                          }
+                        ]
+                      },
+                      {
+                        "Effect": "Allow",
+                        "Action": [
+                          "dynamodb:Query",
+                          "dynamodb:Scan",
+                          "dynamodb:GetItem",
+                          "dynamodb:PutItem",
+                          "dynamodb:UpdateItem",
+                          "dynamodb:DeleteItem",
+                          "dynamodb:DescribeTable"
+                        ],
+                        "Resource": [
+                          "arn:aws:dynamodb:us-east-1:015903983606:table/zazu-validations-prod",
+                          "arn:aws:dynamodb:us-east-1:015903983606:table/zazu-validations-prod/index/*",
+                          "arn:aws:dynamodb:us-east-1:015903983606:table/zazu-notifications-prod",
+                          "arn:aws:dynamodb:us-east-1:015903983606:table/zazu-notifications-prod/index/*"
+                        ]
+                      },
+                      {
+                        "Effect": "Allow",
+                        "Action": [
+                          "s3:GetObject",
+                          "s3:PutObject",
+                          "s3:DeleteObject",
+                          "s3:ListBucket"
+                        ],
+                        "Resource": [
+                          "arn:aws:s3:::zazu-screenshots-prod",
+                          "arn:aws:s3:::zazu-screenshots-prod/*"
+                        ]
+                      },
+                      {
+                        "Effect": "Allow",
+                        "Action": [
+                          "textract:DetectDocumentText",
+                          "textract:AnalyzeDocument"
+                        ],
+                        "Resource": "*"
+                      },
+                      {
+                        "Effect": "Allow",
+                        "Action": [
+                          "lambda:InvokeFunction"
+                        ],
+                        "Resource": "arn:aws:lambda:us-east-1:015903983606:function:odoo-zazu-prod-*"
+                      }
+                    ]
+                  }
+                }
+              ],
+              "Path": "/",
+              "RoleName": {
+                "Fn::Join": [
+                  "-",
+                  [
+                    "odoo-zazu",
+                    "prod",
+                    {
+                      "Ref": "AWS::Region"
+                    },
+                    "lambdaRole"
+                  ]
+                ]
+              }
+            }
+          },
+          "ValidateFromOdooLambdaFunction": {
+            "Type": "AWS::Lambda::Function",
+            "Properties": {
+              "Code": {
+                "S3Bucket": "serverless-framework-deployments-us-east-1-ce1848ae-0327",
+                "S3Key": "serverless/odoo-zazu/prod/1771002830673-2026-02-13T17:13:50.673Z/odoo-zazu.zip"
+              },
+              "Handler": "validation_handler.validate_from_odoo",
+              "Runtime": "python3.12",
+              "FunctionName": "odoo-zazu-prod-validateFromOdoo",
+              "MemorySize": 256,
+              "Timeout": 29,
+              "Environment": {
+                "Variables": {
+                  "NOTIFICATIONS_TABLE": "zazu-notifications-prod",
+                  "VALIDATIONS_TABLE": "zazu-validations-prod",
+                  "SCREENSHOTS_BUCKET": "zazu-screenshots-prod",
+                  "WHATSAPP_TOKEN": "<REDACTED>",
+                  "ODOO_CALLBACK_URL": "https://zazuexpress2-staging-main-28468195.dev.odoo.com/whatsapp/payment/validate",
+                  "ODOO_CALLBACK_TOKEN": "<REDACTED>"
+                }
+              },
+              "Role": {
+                "Fn::GetAtt": [
+                  "IamRoleLambdaExecution",
+                  "Arn"
+                ]
+              }
+            },
+            "DependsOn": [
+              "ValidateFromOdooLogGroup"
+            ]
+          },
+          "ProcessWhatsAppImageLambdaFunction": {
+            "Type": "AWS::Lambda::Function",
+            "Properties": {
+              "Code": {
+                "S3Bucket": "serverless-framework-deployments-us-east-1-ce1848ae-0327",
+                "S3Key": "serverless/odoo-zazu/prod/1771002830673-2026-02-13T17:13:50.673Z/odoo-zazu.zip"
+              },
+              "Handler": "validation_handler.process_whatsapp_image",
+              "Runtime": "python3.12",
+              "FunctionName": "odoo-zazu-prod-processWhatsAppImage",
+              "MemorySize": 256,
+              "Timeout": 29,
+              "Environment": {
+                "Variables": {
+                  "NOTIFICATIONS_TABLE": "zazu-notifications-prod",
+                  "VALIDATIONS_TABLE": "zazu-validations-prod",
+                  "SCREENSHOTS_BUCKET": "zazu-screenshots-prod",
+                  "WHATSAPP_TOKEN": "<REDACTED>",
+                  "ODOO_CALLBACK_URL": "https://zazuexpress2-staging-main-28468195.dev.odoo.com/whatsapp/payment/validate",
+                  "ODOO_CALLBACK_TOKEN": "<REDACTED>"
+                }
+              },
+              "Role": {
+                "Fn::GetAtt": [
+                  "IamRoleLambdaExecution",
+                  "Arn"
+                ]
+              }
+            },
+            "DependsOn": [
+              "ProcessWhatsAppImageLogGroup"
+            ]
+          },
+          "ProcessScreenshotLambdaFunction": {
+            "Type": "AWS::Lambda::Function",
+            "Properties": {
+              "Code": {
+                "S3Bucket": "serverless-framework-deployments-us-east-1-ce1848ae-0327",
+                "S3Key": "serverless/odoo-zazu/prod/1771002830673-2026-02-13T17:13:50.673Z/odoo-zazu.zip"
+              },
+              "Handler": "validation_handler.process_screenshot",
+              "Runtime": "python3.12",
+              "FunctionName": "odoo-zazu-prod-processScreenshot",
+              "MemorySize": 256,
+              "Timeout": 29,
+              "Environment": {
+                "Variables": {
+                  "NOTIFICATIONS_TABLE": "zazu-notifications-prod",
+                  "VALIDATIONS_TABLE": "zazu-validations-prod",
+                  "SCREENSHOTS_BUCKET": "zazu-screenshots-prod",
+                  "WHATSAPP_TOKEN": "<REDACTED>",
+                  "ODOO_CALLBACK_URL": "https://zazuexpress2-staging-main-28468195.dev.odoo.com/whatsapp/payment/validate",
+                  "ODOO_CALLBACK_TOKEN": "<REDACTED>"
+                }
+              },
+              "Role": {
+                "Fn::GetAtt": [
+                  "IamRoleLambdaExecution",
+                  "Arn"
+                ]
+              }
+            },
+            "DependsOn": [
+              "ProcessScreenshotLogGroup"
+            ]
+          },
+          "GetDuplicateValidationsLambdaFunction": {
+            "Type": "AWS::Lambda::Function",
+            "Properties": {
+              "Code": {
+                "S3Bucket": "serverless-framework-deployments-us-east-1-ce1848ae-0327",
+                "S3Key": "serverless/odoo-zazu/prod/1771002830673-2026-02-13T17:13:50.673Z/odoo-zazu.zip"
+              },
+              "Handler": "validation_handler.get_duplicate_validations",
+              "Runtime": "python3.12",
+              "FunctionName": "odoo-zazu-prod-getDuplicateValidations",
+              "MemorySize": 256,
+              "Timeout": 29,
+              "Environment": {
+                "Variables": {
+                  "NOTIFICATIONS_TABLE": "zazu-notifications-prod",
+                  "VALIDATIONS_TABLE": "zazu-validations-prod",
+                  "SCREENSHOTS_BUCKET": "zazu-screenshots-prod",
+                  "WHATSAPP_TOKEN": "<REDACTED>",
+                  "ODOO_CALLBACK_URL": "https://zazuexpress2-staging-main-28468195.dev.odoo.com/whatsapp/payment/validate",
+                  "ODOO_CALLBACK_TOKEN": "<REDACTED>"
+                }
+              },
+              "Role": {
+                "Fn::GetAtt": [
+                  "IamRoleLambdaExecution",
+                  "Arn"
+                ]
+              }
+            },
+            "DependsOn": [
+              "GetDuplicateValidationsLogGroup"
+            ]
+          },
+          "ValidatePaymentLambdaFunction": {
+            "Type": "AWS::Lambda::Function",
+            "Properties": {
+              "Code": {
+                "S3Bucket": "serverless-framework-deployments-us-east-1-ce1848ae-0327",
+                "S3Key": "serverless/odoo-zazu/prod/1771002830673-2026-02-13T17:13:50.673Z/odoo-zazu.zip"
+              },
+              "Handler": "validation_handler.validate_payment",
+              "Runtime": "python3.12",
+              "FunctionName": "odoo-zazu-prod-validatePayment",
+              "MemorySize": 256,
+              "Timeout": 29,
+              "Environment": {
+                "Variables": {
+                  "NOTIFICATIONS_TABLE": "zazu-notifications-prod",
+                  "VALIDATIONS_TABLE": "zazu-validations-prod",
+                  "SCREENSHOTS_BUCKET": "zazu-screenshots-prod",
+                  "WHATSAPP_TOKEN": "<REDACTED>",
+                  "ODOO_CALLBACK_URL": "https://zazuexpress2-staging-main-28468195.dev.odoo.com/whatsapp/payment/validate",
+                  "ODOO_CALLBACK_TOKEN": "<REDACTED>"
+                }
+              },
+              "Role": {
+                "Fn::GetAtt": [
+                  "IamRoleLambdaExecution",
+                  "Arn"
+                ]
+              }
+            },
+            "DependsOn": [
+              "ValidatePaymentLogGroup"
+            ]
+          },
+          "GetValidationsLambdaFunction": {
+            "Type": "AWS::Lambda::Function",
+            "Properties": {
+              "Code": {
+                "S3Bucket": "serverless-framework-deployments-us-east-1-ce1848ae-0327",
+                "S3Key": "serverless/odoo-zazu/prod/1771002830673-2026-02-13T17:13:50.673Z/odoo-zazu.zip"
+              },
+              "Handler": "validation_handler.get_validations",
+              "Runtime": "python3.12",
+              "FunctionName": "odoo-zazu-prod-getValidations",
+              "MemorySize": 256,
+              "Timeout": 29,
+              "Environment": {
+                "Variables": {
+                  "NOTIFICATIONS_TABLE": "zazu-notifications-prod",
+                  "VALIDATIONS_TABLE": "zazu-validations-prod",
+                  "SCREENSHOTS_BUCKET": "zazu-screenshots-prod",
+                  "WHATSAPP_TOKEN": "<REDACTED>",
+                  "ODOO_CALLBACK_URL": "https://zazuexpress2-staging-main-28468195.dev.odoo.com/whatsapp/payment/validate",
+                  "ODOO_CALLBACK_TOKEN": "<REDACTED>"
+                }
+              },
+              "Role": {
+                "Fn::GetAtt": [
+                  "IamRoleLambdaExecution",
+                  "Arn"
+                ]
+              }
+            },
+            "DependsOn": [
+              "GetValidationsLogGroup"
+            ]
+          },
+          "GetValidationByIdLambdaFunction": {
+            "Type": "AWS::Lambda::Function",
+            "Properties": {
+              "Code": {
+                "S3Bucket": "serverless-framework-deployments-us-east-1-ce1848ae-0327",
+                "S3Key": "serverless/odoo-zazu/prod/1771002830673-2026-02-13T17:13:50.673Z/odoo-zazu.zip"
+              },
+              "Handler": "validation_handler.get_validation_by_id",
+              "Runtime": "python3.12",
+              "FunctionName": "odoo-zazu-prod-getValidationById",
+              "MemorySize": 256,
+              "Timeout": 29,
+              "Environment": {
+                "Variables": {
+                  "NOTIFICATIONS_TABLE": "zazu-notifications-prod",
+                  "VALIDATIONS_TABLE": "zazu-validations-prod",
+                  "SCREENSHOTS_BUCKET": "zazu-screenshots-prod",
+                  "WHATSAPP_TOKEN": "<REDACTED>",
+                  "ODOO_CALLBACK_URL": "https://zazuexpress2-staging-main-28468195.dev.odoo.com/whatsapp/payment/validate",
+                  "ODOO_CALLBACK_TOKEN": "<REDACTED>"
+                }
+              },
+              "Role": {
+                "Fn::GetAtt": [
+                  "IamRoleLambdaExecution",
+                  "Arn"
+                ]
+              }
+            },
+            "DependsOn": [
+              "GetValidationByIdLogGroup"
+            ]
+          },
+          "GetPendingValidationsLambdaFunction": {
+            "Type": "AWS::Lambda::Function",
+            "Properties": {
+              "Code": {
+                "S3Bucket": "serverless-framework-deployments-us-east-1-ce1848ae-0327",
+                "S3Key": "serverless/odoo-zazu/prod/1771002830673-2026-02-13T17:13:50.673Z/odoo-zazu.zip"
+              },
+              "Handler": "validation_handler.get_pending_validations",
+              "Runtime": "python3.12",
+              "FunctionName": "odoo-zazu-prod-getPendingValidations",
+              "MemorySize": 256,
+              "Timeout": 29,
+              "Environment": {
+                "Variables": {
+                  "NOTIFICATIONS_TABLE": "zazu-notifications-prod",
+                  "VALIDATIONS_TABLE": "zazu-validations-prod",
+                  "SCREENSHOTS_BUCKET": "zazu-screenshots-prod",
+                  "WHATSAPP_TOKEN": "<REDACTED>",
+                  "ODOO_CALLBACK_URL": "https://zazuexpress2-staging-main-28468195.dev.odoo.com/whatsapp/payment/validate",
+                  "ODOO_CALLBACK_TOKEN": "<REDACTED>"
+                }
+              },
+              "Role": {
+                "Fn::GetAtt": [
+                  "IamRoleLambdaExecution",
+                  "Arn"
+                ]
+              }
+            },
+            "DependsOn": [
+              "GetPendingValidationsLogGroup"
+            ]
+          },
+          "ManualReviewLambdaFunction": {
+            "Type": "AWS::Lambda::Function",
+            "Properties": {
+              "Code": {
+                "S3Bucket": "serverless-framework-deployments-us-east-1-ce1848ae-0327",
+                "S3Key": "serverless/odoo-zazu/prod/1771002830673-2026-02-13T17:13:50.673Z/odoo-zazu.zip"
+              },
+              "Handler": "validation_handler.manual_review",
+              "Runtime": "python3.12",
+              "FunctionName": "odoo-zazu-prod-manualReview",
+              "MemorySize": 256,
+              "Timeout": 29,
+              "Environment": {
+                "Variables": {
+                  "NOTIFICATIONS_TABLE": "zazu-notifications-prod",
+                  "VALIDATIONS_TABLE": "zazu-validations-prod",
+                  "SCREENSHOTS_BUCKET": "zazu-screenshots-prod",
+                  "WHATSAPP_TOKEN": "<REDACTED>",
+                  "ODOO_CALLBACK_URL": "https://zazuexpress2-staging-main-28468195.dev.odoo.com/whatsapp/payment/validate",
+                  "ODOO_CALLBACK_TOKEN": "<REDACTED>"
+                }
+              },
+              "Role": {
+                "Fn::GetAtt": [
+                  "IamRoleLambdaExecution",
+                  "Arn"
+                ]
+              }
+            },
+            "DependsOn": [
+              "ManualReviewLogGroup"
+            ]
+          },
+          "ValidateFromOdooLambdaVersionTXNwvbA6iyTuwrBMebHdAX4w0DPla9WVxQsfbD7X8": {
+            "Type": "AWS::Lambda::Version",
+            "DeletionPolicy": "Retain",
+            "Properties": {
+              "FunctionName": {
+                "Ref": "ValidateFromOdooLambdaFunction"
+              },
+              "CodeSha256": "0GT2310b6tDCKYjilPNj7rFLG6ZWDtgsI7jNEu2w2Uk="
+            }
+          },
+          "ProcessWhatsAppImageLambdaVersionvDZ6iuwrXmXHlSVEDVvh7scFphQEp6zLMcFPDNXgs": {
+            "Type": "AWS::Lambda::Version",
+            "DeletionPolicy": "Retain",
+            "Properties": {
+              "FunctionName": {
+                "Ref": "ProcessWhatsAppImageLambdaFunction"
+              },
+              "CodeSha256": "0GT2310b6tDCKYjilPNj7rFLG6ZWDtgsI7jNEu2w2Uk="
+            }
+          },
+          "ProcessScreenshotLambdaVersionfLCo7ikRKgtH0pdoienWZq1WBy2xEFNtf8vKjz8": {
+            "Type": "AWS::Lambda::Version",
+            "DeletionPolicy": "Retain",
+            "Properties": {
+              "FunctionName": {
+                "Ref": "ProcessScreenshotLambdaFunction"
+              },
+              "CodeSha256": "0GT2310b6tDCKYjilPNj7rFLG6ZWDtgsI7jNEu2w2Uk="
+            }
+          },
+          "GetDuplicateValidationsLambdaVersionJ9RdZzEbCqr5E2IVaS2pLAbsXi9GeFDTU5noyCAh1f8": {
+            "Type": "AWS::Lambda::Version",
+            "DeletionPolicy": "Retain",
+            "Properties": {
+              "FunctionName": {
+                "Ref": "GetDuplicateValidationsLambdaFunction"
+              },
+              "CodeSha256": "0GT2310b6tDCKYjilPNj7rFLG6ZWDtgsI7jNEu2w2Uk="
+            }
+          },
+          "ValidatePaymentLambdaVersiongkKxDdtOZTPBds7V0DeG8L75jbOsUo54UuRkrJWWfOc": {
+            "Type": "AWS::Lambda::Version",
+            "DeletionPolicy": "Retain",
+            "Properties": {
+              "FunctionName": {
+                "Ref": "ValidatePaymentLambdaFunction"
+              },
+              "CodeSha256": "0GT2310b6tDCKYjilPNj7rFLG6ZWDtgsI7jNEu2w2Uk="
+            }
+          },
+          "GetValidationsLambdaVersionWRE9pyts1SNMzc9ExmGb2QTXzfzdD3CbaTpILcrdqU": {
+            "Type": "AWS::Lambda::Version",
+            "DeletionPolicy": "Retain",
+            "Properties": {
+              "FunctionName": {
+                "Ref": "GetValidationsLambdaFunction"
+              },
+              "CodeSha256": "0GT2310b6tDCKYjilPNj7rFLG6ZWDtgsI7jNEu2w2Uk="
+            }
+          },
+          "GetValidationByIdLambdaVersionp8GYPhZhw4NSz4IEsAfmjAbywFvK6Bz9sddwWyfeM": {
+            "Type": "AWS::Lambda::Version",
+            "DeletionPolicy": "Retain",
+            "Properties": {
+              "FunctionName": {
+                "Ref": "GetValidationByIdLambdaFunction"
+              },
+              "CodeSha256": "0GT2310b6tDCKYjilPNj7rFLG6ZWDtgsI7jNEu2w2Uk="
+            }
+          },
+          "GetPendingValidationsLambdaVersionLSVKwPfpxe9gz4EJ9rJ3MWxBFejHDfcQGsbVU2cQ": {
+            "Type": "AWS::Lambda::Version",
+            "DeletionPolicy": "Retain",
+            "Properties": {
+              "FunctionName": {
+                "Ref": "GetPendingValidationsLambdaFunction"
+              },
+              "CodeSha256": "0GT2310b6tDCKYjilPNj7rFLG6ZWDtgsI7jNEu2w2Uk="
+            }
+          },
+          "ManualReviewLambdaVersionD3kJszbg6okCod62EHDGHUty8TBbZ9MrZzMYcoF8": {
+            "Type": "AWS::Lambda::Version",
+            "DeletionPolicy": "Retain",
+            "Properties": {
+              "FunctionName": {
+                "Ref": "ManualReviewLambdaFunction"
+              },
+              "CodeSha256": "0GT2310b6tDCKYjilPNj7rFLG6ZWDtgsI7jNEu2w2Uk="
+            }
+          },
+          "HttpApi": {
+            "Type": "AWS::ApiGatewayV2::Api",
+            "Properties": {
+              "Name": "prod-odoo-zazu",
+              "ProtocolType": "HTTP"
+            }
+          },
+          "HttpApiStage": {
+            "Type": "AWS::ApiGatewayV2::Stage",
+            "Properties": {
+              "ApiId": {
+                "Ref": "HttpApi"
+              },
+              "StageName": "$default",
+              "AutoDeploy": true,
+              "DefaultRouteSettings": {
+                "DetailedMetricsEnabled": false
+              }
+            }
+          },
+          "ValidateFromOdooLambdaPermissionHttpApi": {
+            "Type": "AWS::Lambda::Permission",
+            "Properties": {
+              "FunctionName": {
+                "Fn::GetAtt": [
+                  "ValidateFromOdooLambdaFunction",
+                  "Arn"
+                ]
+              },
+              "Action": "lambda:InvokeFunction",
+              "Principal": "apigateway.amazonaws.com",
+              "SourceArn": {
+                "Fn::Join": [
+                  "",
+                  [
+                    "arn:",
+                    {
+                      "Ref": "AWS::Partition"
+                    },
+                    ":execute-api:",
+                    {
+                      "Ref": "AWS::Region"
+                    },
+                    ":",
+                    {
+                      "Ref": "AWS::AccountId"
+                    },
+                    ":",
+                    {
+                      "Ref": "HttpApi"
+                    },
+                    "/*"
+                  ]
+                ]
+              }
+            }
+          },
+          "HttpApiIntegrationValidateFromOdoo": {
+            "Type": "AWS::ApiGatewayV2::Integration",
+            "Properties": {
+              "ApiId": {
+                "Ref": "HttpApi"
+              },
+              "IntegrationType": "AWS_PROXY",
+              "IntegrationUri": {
+                "Fn::GetAtt": [
+                  "ValidateFromOdooLambdaFunction",
+                  "Arn"
+                ]
+              },
+              "PayloadFormatVersion": "2.0",
+              "TimeoutInMillis": 30000
+            }
+          },
+          "HttpApiRoutePostValidateDashfromDashodoo": {
+            "Type": "AWS::ApiGatewayV2::Route",
+            "Properties": {
+              "ApiId": {
+                "Ref": "HttpApi"
+              },
+              "RouteKey": "POST /validate-from-odoo",
+              "Target": {
+                "Fn::Join": [
+                  "/",
+                  [
+                    "integrations",
+                    {
+                      "Ref": "HttpApiIntegrationValidateFromOdoo"
+                    }
+                  ]
+                ]
+              }
+            },
+            "DependsOn": "HttpApiIntegrationValidateFromOdoo"
+          },
+          "GetDuplicateValidationsLambdaPermissionHttpApi": {
+            "Type": "AWS::Lambda::Permission",
+            "Properties": {
+              "FunctionName": {
+                "Fn::GetAtt": [
+                  "GetDuplicateValidationsLambdaFunction",
+                  "Arn"
+                ]
+              },
+              "Action": "lambda:InvokeFunction",
+              "Principal": "apigateway.amazonaws.com",
+              "SourceArn": {
+                "Fn::Join": [
+                  "",
+                  [
+                    "arn:",
+                    {
+                      "Ref": "AWS::Partition"
+                    },
+                    ":execute-api:",
+                    {
+                      "Ref": "AWS::Region"
+                    },
+                    ":",
+                    {
+                      "Ref": "AWS::AccountId"
+                    },
+                    ":",
+                    {
+                      "Ref": "HttpApi"
+                    },
+                    "/*"
+                  ]
+                ]
+              }
+            }
+          },
+          "HttpApiIntegrationGetDuplicateValidations": {
+            "Type": "AWS::ApiGatewayV2::Integration",
+            "Properties": {
+              "ApiId": {
+                "Ref": "HttpApi"
+              },
+              "IntegrationType": "AWS_PROXY",
+              "IntegrationUri": {
+                "Fn::GetAtt": [
+                  "GetDuplicateValidationsLambdaFunction",
+                  "Arn"
+                ]
+              },
+              "PayloadFormatVersion": "2.0",
+              "TimeoutInMillis": 30000
+            }
+          },
+          "HttpApiRouteGetValidationsDuplicates": {
+            "Type": "AWS::ApiGatewayV2::Route",
+            "Properties": {
+              "ApiId": {
+                "Ref": "HttpApi"
+              },
+              "RouteKey": "GET /validations/duplicates",
+              "Target": {
+                "Fn::Join": [
+                  "/",
+                  [
+                    "integrations",
+                    {
+                      "Ref": "HttpApiIntegrationGetDuplicateValidations"
+                    }
+                  ]
+                ]
+              }
+            },
+            "DependsOn": "HttpApiIntegrationGetDuplicateValidations"
+          },
+          "GetValidationsLambdaPermissionHttpApi": {
+            "Type": "AWS::Lambda::Permission",
+            "Properties": {
+              "FunctionName": {
+                "Fn::GetAtt": [
+                  "GetValidationsLambdaFunction",
+                  "Arn"
+                ]
+              },
+              "Action": "lambda:InvokeFunction",
+              "Principal": "apigateway.amazonaws.com",
+              "SourceArn": {
+                "Fn::Join": [
+                  "",
+                  [
+                    "arn:",
+                    {
+                      "Ref": "AWS::Partition"
+                    },
+                    ":execute-api:",
+                    {
+                      "Ref": "AWS::Region"
+                    },
+                    ":",
+                    {
+                      "Ref": "AWS::AccountId"
+                    },
+                    ":",
+                    {
+                      "Ref": "HttpApi"
+                    },
+                    "/*"
+                  ]
+                ]
+              }
+            }
+          },
+          "HttpApiIntegrationGetValidations": {
+            "Type": "AWS::ApiGatewayV2::Integration",
+            "Properties": {
+              "ApiId": {
+                "Ref": "HttpApi"
+              },
+              "IntegrationType": "AWS_PROXY",
+              "IntegrationUri": {
+                "Fn::GetAtt": [
+                  "GetValidationsLambdaFunction",
+                  "Arn"
+                ]
+              },
+              "PayloadFormatVersion": "2.0",
+              "TimeoutInMillis": 30000
+            }
+          },
+          "HttpApiRouteGetValidations": {
+            "Type": "AWS::ApiGatewayV2::Route",
+            "Properties": {
+              "ApiId": {
+                "Ref": "HttpApi"
+              },
+              "RouteKey": "GET /validations",
+              "Target": {
+                "Fn::Join": [
+                  "/",
+                  [
+                    "integrations",
+                    {
+                      "Ref": "HttpApiIntegrationGetValidations"
+                    }
+                  ]
+                ]
+              }
+            },
+            "DependsOn": "HttpApiIntegrationGetValidations"
+          },
+          "GetValidationByIdLambdaPermissionHttpApi": {
+            "Type": "AWS::Lambda::Permission",
+            "Properties": {
+              "FunctionName": {
+                "Fn::GetAtt": [
+                  "GetValidationByIdLambdaFunction",
+                  "Arn"
+                ]
+              },
+              "Action": "lambda:InvokeFunction",
+              "Principal": "apigateway.amazonaws.com",
+              "SourceArn": {
+                "Fn::Join": [
+                  "",
+                  [
+                    "arn:",
+                    {
+                      "Ref": "AWS::Partition"
+                    },
+                    ":execute-api:",
+                    {
+                      "Ref": "AWS::Region"
+                    },
+                    ":",
+                    {
+                      "Ref": "AWS::AccountId"
+                    },
+                    ":",
+                    {
+                      "Ref": "HttpApi"
+                    },
+                    "/*"
+                  ]
+                ]
+              }
+            }
+          },
+          "HttpApiIntegrationGetValidationById": {
+            "Type": "AWS::ApiGatewayV2::Integration",
+            "Properties": {
+              "ApiId": {
+                "Ref": "HttpApi"
+              },
+              "IntegrationType": "AWS_PROXY",
+              "IntegrationUri": {
+                "Fn::GetAtt": [
+                  "GetValidationByIdLambdaFunction",
+                  "Arn"
+                ]
+              },
+              "PayloadFormatVersion": "2.0",
+              "TimeoutInMillis": 30000
+            }
+          },
+          "HttpApiRouteGetValidationsIdVar": {
+            "Type": "AWS::ApiGatewayV2::Route",
+            "Properties": {
+              "ApiId": {
+                "Ref": "HttpApi"
+              },
+              "RouteKey": "GET /validations/{id}",
+              "Target": {
+                "Fn::Join": [
+                  "/",
+                  [
+                    "integrations",
+                    {
+                      "Ref": "HttpApiIntegrationGetValidationById"
+                    }
+                  ]
+                ]
+              }
+            },
+            "DependsOn": "HttpApiIntegrationGetValidationById"
+          },
+          "GetPendingValidationsLambdaPermissionHttpApi": {
+            "Type": "AWS::Lambda::Permission",
+            "Properties": {
+              "FunctionName": {
+                "Fn::GetAtt": [
+                  "GetPendingValidationsLambdaFunction",
+                  "Arn"
+                ]
+              },
+              "Action": "lambda:InvokeFunction",
+              "Principal": "apigateway.amazonaws.com",
+              "SourceArn": {
+                "Fn::Join": [
+                  "",
+                  [
+                    "arn:",
+                    {
+                      "Ref": "AWS::Partition"
+                    },
+                    ":execute-api:",
+                    {
+                      "Ref": "AWS::Region"
+                    },
+                    ":",
+                    {
+                      "Ref": "AWS::AccountId"
+                    },
+                    ":",
+                    {
+                      "Ref": "HttpApi"
+                    },
+                    "/*"
+                  ]
+                ]
+              }
+            }
+          },
+          "HttpApiIntegrationGetPendingValidations": {
+            "Type": "AWS::ApiGatewayV2::Integration",
+            "Properties": {
+              "ApiId": {
+                "Ref": "HttpApi"
+              },
+              "IntegrationType": "AWS_PROXY",
+              "IntegrationUri": {
+                "Fn::GetAtt": [
+                  "GetPendingValidationsLambdaFunction",
+                  "Arn"
+                ]
+              },
+              "PayloadFormatVersion": "2.0",
+              "TimeoutInMillis": 30000
+            }
+          },
+          "HttpApiRouteGetValidationsPending": {
+            "Type": "AWS::ApiGatewayV2::Route",
+            "Properties": {
+              "ApiId": {
+                "Ref": "HttpApi"
+              },
+              "RouteKey": "GET /validations/pending",
+              "Target": {
+                "Fn::Join": [
+                  "/",
+                  [
+                    "integrations",
+                    {
+                      "Ref": "HttpApiIntegrationGetPendingValidations"
+                    }
+                  ]
+                ]
+              }
+            },
+            "DependsOn": "HttpApiIntegrationGetPendingValidations"
+          },
+          "ManualReviewLambdaPermissionHttpApi": {
+            "Type": "AWS::Lambda::Permission",
+            "Properties": {
+              "FunctionName": {
+                "Fn::GetAtt": [
+                  "ManualReviewLambdaFunction",
+                  "Arn"
+                ]
+              },
+              "Action": "lambda:InvokeFunction",
+              "Principal": "apigateway.amazonaws.com",
+              "SourceArn": {
+                "Fn::Join": [
+                  "",
+                  [
+                    "arn:",
+                    {
+                      "Ref": "AWS::Partition"
+                    },
+                    ":execute-api:",
+                    {
+                      "Ref": "AWS::Region"
+                    },
+                    ":",
+                    {
+                      "Ref": "AWS::AccountId"
+                    },
+                    ":",
+                    {
+                      "Ref": "HttpApi"
+                    },
+                    "/*"
+                  ]
+                ]
+              }
+            }
+          },
+          "HttpApiIntegrationManualReview": {
+            "Type": "AWS::ApiGatewayV2::Integration",
+            "Properties": {
+              "ApiId": {
+                "Ref": "HttpApi"
+              },
+              "IntegrationType": "AWS_PROXY",
+              "IntegrationUri": {
+                "Fn::GetAtt": [
+                  "ManualReviewLambdaFunction",
+                  "Arn"
+                ]
+              },
+              "PayloadFormatVersion": "2.0",
+              "TimeoutInMillis": 30000
+            }
+          },
+          "HttpApiRoutePutValidationsIdVarReview": {
+            "Type": "AWS::ApiGatewayV2::Route",
+            "Properties": {
+              "ApiId": {
+                "Ref": "HttpApi"
+              },
+              "RouteKey": "PUT /validations/{id}/review",
+              "Target": {
+                "Fn::Join": [
+                  "/",
+                  [
+                    "integrations",
+                    {
+                      "Ref": "HttpApiIntegrationManualReview"
+                    }
+                  ]
+                ]
+              }
+            },
+            "DependsOn": "HttpApiIntegrationManualReview"
+          }
+        },
+        "Outputs": {
+          "ServerlessDeploymentBucketName": {
+            "Value": "serverless-framework-deployments-us-east-1-ce1848ae-0327",
+            "Export": {
+              "Name": "sls-odoo-zazu-prod-ServerlessDeploymentBucketName"
+            }
+          },
+          "ValidateFromOdooLambdaFunctionQualifiedArn": {
+            "Description": "Current Lambda function version",
+            "Value": {
+              "Ref": "ValidateFromOdooLambdaVersionTXNwvbA6iyTuwrBMebHdAX4w0DPla9WVxQsfbD7X8"
+            },
+            "Export": {
+              "Name": "sls-odoo-zazu-prod-ValidateFromOdooLambdaFunctionQualifiedArn"
+            }
+          },
+          "ProcessWhatsAppImageLambdaFunctionQualifiedArn": {
+            "Description": "Current Lambda function version",
+            "Value": {
+              "Ref": "ProcessWhatsAppImageLambdaVersionvDZ6iuwrXmXHlSVEDVvh7scFphQEp6zLMcFPDNXgs"
+            },
+            "Export": {
+              "Name": "sls-odoo-zazu-prod-ProcessWhatsAppImageLambdaFunctionQualifiedArn"
+            }
+          },
+          "ProcessScreenshotLambdaFunctionQualifiedArn": {
+            "Description": "Current Lambda function version",
+            "Value": {
+              "Ref": "ProcessScreenshotLambdaVersionfLCo7ikRKgtH0pdoienWZq1WBy2xEFNtf8vKjz8"
+            },
+            "Export": {
+              "Name": "sls-odoo-zazu-prod-ProcessScreenshotLambdaFunctionQualifiedArn"
+            }
+          },
+          "GetDuplicateValidationsLambdaFunctionQualifiedArn": {
+            "Description": "Current Lambda function version",
+            "Value": {
+              "Ref": "GetDuplicateValidationsLambdaVersionJ9RdZzEbCqr5E2IVaS2pLAbsXi9GeFDTU5noyCAh1f8"
+            },
+            "Export": {
+              "Name": "sls-odoo-zazu-prod-GetDuplicateValidationsLambdaFunctionQualifiedArn"
+            }
+          },
+          "ValidatePaymentLambdaFunctionQualifiedArn": {
+            "Description": "Current Lambda function version",
+            "Value": {
+              "Ref": "ValidatePaymentLambdaVersiongkKxDdtOZTPBds7V0DeG8L75jbOsUo54UuRkrJWWfOc"
+            },
+            "Export": {
+              "Name": "sls-odoo-zazu-prod-ValidatePaymentLambdaFunctionQualifiedArn"
+            }
+          },
+          "GetValidationsLambdaFunctionQualifiedArn": {
+            "Description": "Current Lambda function version",
+            "Value": {
+              "Ref": "GetValidationsLambdaVersionWRE9pyts1SNMzc9ExmGb2QTXzfzdD3CbaTpILcrdqU"
+            },
+            "Export": {
+              "Name": "sls-odoo-zazu-prod-GetValidationsLambdaFunctionQualifiedArn"
+            }
+          },
+          "GetValidationByIdLambdaFunctionQualifiedArn": {
+            "Description": "Current Lambda function version",
+            "Value": {
+              "Ref": "GetValidationByIdLambdaVersionp8GYPhZhw4NSz4IEsAfmjAbywFvK6Bz9sddwWyfeM"
+            },
+            "Export": {
+              "Name": "sls-odoo-zazu-prod-GetValidationByIdLambdaFunctionQualifiedArn"
+            }
+          },
+          "GetPendingValidationsLambdaFunctionQualifiedArn": {
+            "Description": "Current Lambda function version",
+            "Value": {
+              "Ref": "GetPendingValidationsLambdaVersionLSVKwPfpxe9gz4EJ9rJ3MWxBFejHDfcQGsbVU2cQ"
+            },
+            "Export": {
+              "Name": "sls-odoo-zazu-prod-GetPendingValidationsLambdaFunctionQualifiedArn"
+            }
+          },
+          "ManualReviewLambdaFunctionQualifiedArn": {
+            "Description": "Current Lambda function version",
+            "Value": {
+              "Ref": "ManualReviewLambdaVersionD3kJszbg6okCod62EHDGHUty8TBbZ9MrZzMYcoF8"
+            },
+            "Export": {
+              "Name": "sls-odoo-zazu-prod-ManualReviewLambdaFunctionQualifiedArn"
+            }
+          },
+          "HttpApiId": {
+            "Description": "Id of the HTTP API",
+            "Value": {
+              "Ref": "HttpApi"
+            },
+            "Export": {
+              "Name": "sls-odoo-zazu-prod-HttpApiId"
+            }
+          },
+          "HttpApiUrl": {
+            "Description": "URL of the HTTP API",
+            "Value": {
+              "Fn::Join": [
+                "",
+                [
+                  "https://",
+                  {
+                    "Ref": "HttpApi"
+                  },
+                  ".execute-api.",
+                  {
+                    "Ref": "AWS::Region"
+                  },
+                  ".",
+                  {
+                    "Ref": "AWS::URLSuffix"
+                  }
+                ]
+              ]
+            },
+            "Export": {
+              "Name": "sls-odoo-zazu-prod-HttpApiUrl"
+            }
+          }
+        }
+      },
+      "vpc": {}
     },
     "dashboard": {
       "isEnabledForService": true,
@@ -420,26 +2688,1268 @@
       "serviceProvider": null,
       "instanceParameters": null
     },
-    "error": {
-      "message": "Cannot resolve '${ssm:/zazu/odoo_callback_url}' variable at 'provider.environment.ODOO_CALLBACK_URL'. No value is available for this variable, and no default value was provided. Please check your variable definitions or provide a default value.",
-      "stack": "Error: Cannot resolve '${ssm:/zazu/odoo_callback_url}' variable at 'provider.environment.ODOO_CALLBACK_URL'. No value is available for this variable, and no default value was provided. Please check your variable definitions or provide a default value.\n    at _ResolverManager.resolve (file:///C:/Users/USUARIO/.serverless/releases/4.31.2/package/dist/sf-core.js:925:32358)\n    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)\n    at async #handlePlaceholderNode (file:///C:/Users/USUARIO/.serverless/releases/4.31.2/package/dist/sf-core.js:925:30536)\n    at async file:///C:/Users/USUARIO/.serverless/releases/4.31.2/package/dist/sf-core.js:925:28380\n    at async processNodeAndHandleCompletion (file:///C:/Users/USUARIO/.serverless/releases/4.31.2/package/dist/sf-core.js:925:16765)",
-      "code": "MISSING_VARIABLE_RESULT"
-    },
-    "serviceRawFile": "org: jesusflores123\napp: zazu-update\nservice: odoo-zazu\n\nprovider:\n  name: aws\n  runtime: python3.12\n  region: us-east-1\n  stage: ${opt:stage, 'dev'}\n  memorySize: 256\n  timeout: 29\n  logRetentionInDays: 14\n  environment:\n    NOTIFICATIONS_TABLE: ${self:service}-notifications-${sls:stage}\n    VALIDATIONS_TABLE: ${self:service}-validations-${sls:stage}\n    SCREENSHOTS_BUCKET: ${self:service}-screenshots-${sls:stage}\n    WHATSAPP_TOKEN: ${ssm:/zazu/whatsapp_token}\n\n    ODOO_CALLBACK_URL: ${ssm:/zazu/odoo_callback_url}\n    ODOO_CALLBACK_TOKEN: ${ssm:/zazu/odoo_callback_token}\n\n  iam:\n    role:\n      statements:\n        - Effect: Allow\n          Action:\n            - dynamodb:Query\n            - dynamodb:Scan\n            - dynamodb:GetItem\n            - dynamodb:PutItem\n            - dynamodb:UpdateItem\n            - dynamodb:DeleteItem\n            - dynamodb:DescribeTable\n          Resource:\n            - arn:aws:dynamodb:${aws:region}:${aws:accountId}:table/${self:service}-*\n            - arn:aws:dynamodb:${aws:region}:${aws:accountId}:table/${self:service}-*/index/*\n\n        - Effect: Allow\n          Action:\n            - s3:GetObject\n            - s3:PutObject\n            - s3:DeleteObject\n            - s3:ListBucket\n          Resource:\n            - arn:aws:s3:::${self:service}-screenshots-${sls:stage}\n            - arn:aws:s3:::${self:service}-screenshots-${sls:stage}/*\n\n        - Effect: Allow\n          Action:\n            - textract:DetectDocumentText\n            - textract:AnalyzeDocument\n          Resource: \"*\"\n\n        - Effect: Allow\n          Action:\n            - lambda:InvokeFunction\n          Resource:\n            - arn:aws:lambda:${aws:region}:${aws:accountId}:function:${self:service}-${sls:stage}-*\n\nplugins:\n  - serverless-prune-plugin\n\ncustom:\n  prune:\n    automatic: true\n    number: 3\n\n# ===== DEFINICIÓN DEL LAYER =====\nlayers:\n  CommonLibs:\n    path: layers/common\n    name: ${self:service}-common-libs-${sls:stage}\n    compatibleRuntimes:\n      - python3.12\n\nfunctions:\n  # ===== VALIDACIÓN (Usan validation_handler.py, REQUIEREN LAYER) =====\n  validateFromOdoo:\n    handler: validation_handler.validate_from_odoo\n    layers:\n      - { Ref: CommonLibsLambdaLayer }\n    events:\n      - httpApi:\n          path: /validate-from-odoo\n          method: post\n    timeout: 60\n\n  processWhatsAppImage:\n    handler: validation_handler.process_whatsapp_image\n    layers:\n      - { Ref: CommonLibsLambdaLayer }\n    timeout: 60\n\n  processScreenshot:\n    handler: validation_handler.process_screenshot\n    layers:\n      - { Ref: CommonLibsLambdaLayer }\n    events:\n      - s3:\n          bucket: ${self:service}-screenshots-${sls:stage}\n          event: s3:ObjectCreated:*\n          existing: true\n    timeout: 60\n\n  getDuplicateValidations:\n    handler: validation_handler.get_duplicate_validations\n    layers:\n      - { Ref: CommonLibsLambdaLayer }\n    events:\n      - httpApi:\n          path: /validations/duplicates\n          method: get\n\n  validatePayment:\n    handler: validation_handler.validate_payment\n    layers:\n      - { Ref: CommonLibsLambdaLayer }\n    timeout: 30\n\n  getValidations:\n    handler: validation_handler.get_validations\n    layers:\n      - { Ref: CommonLibsLambdaLayer }\n    events:\n      - httpApi:\n          path: /validations\n          method: get\n\n  getValidationById:\n    handler: validation_handler.get_validation_by_id\n    layers:\n      - { Ref: CommonLibsLambdaLayer }\n    events:\n      - httpApi:\n          path: /validations/{id}\n          method: get\n\n  getPendingValidations:\n    handler: validation_handler.get_pending_validations\n    layers:\n      - { Ref: CommonLibsLambdaLayer }\n    events:\n      - httpApi:\n          path: /validations/pending\n          method: get\n\n  manualReview:\n    handler: validation_handler.manual_review\n    layers:\n      - { Ref: CommonLibsLambdaLayer }\n    events:\n      - httpApi:\n          path: /validations/{id}/review\n          method: put\n\nresources:\n  Resources:\n    # Tabla de Validaciones\n    ValidationsTable:\n      Type: AWS::DynamoDB::Table\n      Properties:\n        TableName: ${self:service}-validations-${sls:stage}\n        BillingMode: PAY_PER_REQUEST\n        AttributeDefinitions:\n          - AttributeName: id\n            AttributeType: S\n          - AttributeName: validation_status\n            AttributeType: S\n          - AttributeName: created_at\n            AttributeType: N\n          - AttributeName: phone_number\n            AttributeType: S\n        KeySchema:\n          - AttributeName: id\n            KeyType: HASH\n        GlobalSecondaryIndexes:\n          - IndexName: ValidationStatusIndex\n            KeySchema:\n              - AttributeName: validation_status\n                KeyType: HASH\n              - AttributeName: created_at\n                KeyType: RANGE\n            Projection:\n              ProjectionType: ALL\n          - IndexName: PhoneNumberIndex\n            KeySchema:\n              - AttributeName: phone_number\n                KeyType: HASH\n              - AttributeName: created_at\n                KeyType: RANGE\n            Projection:\n              ProjectionType: ALL\n\n    # Bucket S3\n    ScreenshotsBucket:\n      Type: AWS::S3::Bucket\n      Properties:\n        BucketName: ${self:service}-screenshots-${sls:stage}\n        PublicAccessBlockConfiguration:\n          BlockPublicAcls: true\n          BlockPublicPolicy: true\n          IgnorePublicAcls: true\n          RestrictPublicBuckets: true\n        LifecycleConfiguration:\n          Rules:\n            - Id: DeleteOldScreenshots\n              Status: Enabled\n              ExpirationInDays: 90\n\npackage:\n  patterns:\n    - '!node_modules/**'\n    - '!.venv/**'\n    - '!.git/**'\n    - '!.idea/**'\n    - '!.serverless/**'\n    - '!__pycache__/**'\n    - '!layers/**'\n",
+    "serviceRawFile": "org: jesusflores123\napp: zazu-update\nservice: odoo-zazu\n\nprovider:\n  name: aws\n  runtime: python3.12\n  region: us-east-1\n  stage: ${opt:stage, 'dev'}\n  memorySize: 256\n  timeout: 29\n  logRetentionInDays: 14\n  environment:\n    NOTIFICATIONS_TABLE: zazu-notifications-prod\n    VALIDATIONS_TABLE: zazu-validations-prod\n    SCREENSHOTS_BUCKET: zazu-screenshots-prod\n    WHATSAPP_TOKEN: ${ssm:/zazu2/odoo_whatsapp_token, ''}\n    ODOO_CALLBACK_URL: ${ssm:/zazu2/odoo_callback_url, ''}\n    ODOO_CALLBACK_TOKEN: ${ssm:/zazu2/odoo_callback_token, ''}\n\n  iam:\n    role:\n      statements:\n        - Effect: Allow\n          Action:\n            - dynamodb:Query\n            - dynamodb:Scan\n            - dynamodb:GetItem\n            - dynamodb:PutItem\n            - dynamodb:UpdateItem\n            - dynamodb:DeleteItem\n            - dynamodb:DescribeTable\n          Resource:\n            - arn:aws:dynamodb:${aws:region}:${aws:accountId}:table/zazu-validations-prod\n            - arn:aws:dynamodb:${aws:region}:${aws:accountId}:table/zazu-validations-prod/index/*\n            - arn:aws:dynamodb:${aws:region}:${aws:accountId}:table/zazu-notifications-prod\n            - arn:aws:dynamodb:${aws:region}:${aws:accountId}:table/zazu-notifications-prod/index/*\n\n        - Effect: Allow\n          Action:\n            - s3:GetObject\n            - s3:PutObject\n            - s3:DeleteObject\n            - s3:ListBucket\n          Resource:\n            - arn:aws:s3:::zazu-screenshots-prod\n            - arn:aws:s3:::zazu-screenshots-prod/*\n\n        - Effect: Allow\n          Action:\n            - textract:DetectDocumentText\n            - textract:AnalyzeDocument\n          Resource: \"*\"\n\n        - Effect: Allow\n          Action:\n            - lambda:InvokeFunction\n          Resource:\n            - arn:aws:lambda:${aws:region}:${aws:accountId}:function:${self:service}-${sls:stage}-*\n\ncustom:\n  prune:\n    automatic: true\n    number: 3\n\nfunctions:\n  # ===== VALIDACION (Usan validation_handler.py) =====\n  validateFromOdoo:\n    handler: validation_handler.validate_from_odoo\n    events:\n      - httpApi:\n          path: /validate-from-odoo\n          method: post\n    timeout: 29\n\n  processWhatsAppImage:\n    handler: validation_handler.process_whatsapp_image\n    timeout: 29\n\n  processScreenshot:\n    handler: validation_handler.process_screenshot\n    timeout: 29\n\n  getDuplicateValidations:\n    handler: validation_handler.get_duplicate_validations\n    events:\n      - httpApi:\n          path: /validations/duplicates\n          method: get\n\n  validatePayment:\n    handler: validation_handler.validate_payment\n    timeout: 29\n\n  getValidations:\n    handler: validation_handler.get_validations\n    events:\n      - httpApi:\n          path: /validations\n          method: get\n\n  getValidationById:\n    handler: validation_handler.get_validation_by_id\n    events:\n      - httpApi:\n          path: /validations/{id}\n          method: get\n\n  getPendingValidations:\n    handler: validation_handler.get_pending_validations\n    events:\n      - httpApi:\n          path: /validations/pending\n          method: get\n\n  manualReview:\n    handler: validation_handler.manual_review\n    events:\n      - httpApi:\n          path: /validations/{id}/review\n          method: put\r\n\r\npackage:\n  patterns:\n    - '!node_modules/**'\n    - '!.venv/**'\n    - '!.git/**'\n    - '!.idea/**'\n    - '!__pycache__/**'\n",
     "command": [
       "deploy"
     ],
     "options": {
-      "stage": "dev"
+      "stage": "prod"
     },
     "orgId": "df199eb2-3f94-4ad4-9503-fd687c6e2fa8",
     "orgName": "jesusflores123",
     "userId": "wGyMWXlcjM5tTqMkP5",
     "userName": "jesusflores123",
-    "serviceProviderAwsCfStackId": null,
-    "serviceProviderAwsCfStackCreated": null,
-    "serviceProviderAwsCfStackUpdated": null,
-    "serviceProviderAwsCfStackStatus": null,
-    "serviceProviderAwsCfStackOutputs": null
+    "serviceProviderAwsAccountId": "015903983606",
+    "serviceProviderAwsCfStackName": "odoo-zazu-prod",
+    "serviceProviderAwsCfStackId": "arn:aws:cloudformation:us-east-1:015903983606:stack/odoo-zazu-prod/6a9dec20-08ea-11f1-8185-0e34a92540e5",
+    "serviceProviderAwsCfStackCreated": "2026-02-13T14:43:53.060Z",
+    "serviceProviderAwsCfStackUpdated": "2026-02-13T16:52:08.167Z",
+    "serviceProviderAwsCfStackStatus": "UPDATE_COMPLETE",
+    "serviceProviderAwsCfStackOutputs": [
+      {
+        "OutputKey": "ValidateFromOdooLambdaFunctionQualifiedArn",
+        "OutputValue": "arn:aws:lambda:us-east-1:015903983606:function:odoo-zazu-prod-validateFromOdoo:6",
+        "Description": "Current Lambda function version",
+        "ExportName": "sls-odoo-zazu-prod-ValidateFromOdooLambdaFunctionQualifiedArn"
+      },
+      {
+        "OutputKey": "ManualReviewLambdaFunctionQualifiedArn",
+        "OutputValue": "arn:aws:lambda:us-east-1:015903983606:function:odoo-zazu-prod-manualReview:6",
+        "Description": "Current Lambda function version",
+        "ExportName": "sls-odoo-zazu-prod-ManualReviewLambdaFunctionQualifiedArn"
+      },
+      {
+        "OutputKey": "ProcessWhatsAppImageLambdaFunctionQualifiedArn",
+        "OutputValue": "arn:aws:lambda:us-east-1:015903983606:function:odoo-zazu-prod-processWhatsAppImage:6",
+        "Description": "Current Lambda function version",
+        "ExportName": "sls-odoo-zazu-prod-ProcessWhatsAppImageLambdaFunctionQualifiedArn"
+      },
+      {
+        "OutputKey": "GetPendingValidationsLambdaFunctionQualifiedArn",
+        "OutputValue": "arn:aws:lambda:us-east-1:015903983606:function:odoo-zazu-prod-getPendingValidations:6",
+        "Description": "Current Lambda function version",
+        "ExportName": "sls-odoo-zazu-prod-GetPendingValidationsLambdaFunctionQualifiedArn"
+      },
+      {
+        "OutputKey": "GetValidationsLambdaFunctionQualifiedArn",
+        "OutputValue": "arn:aws:lambda:us-east-1:015903983606:function:odoo-zazu-prod-getValidations:6",
+        "Description": "Current Lambda function version",
+        "ExportName": "sls-odoo-zazu-prod-GetValidationsLambdaFunctionQualifiedArn"
+      },
+      {
+        "OutputKey": "ValidatePaymentLambdaFunctionQualifiedArn",
+        "OutputValue": "arn:aws:lambda:us-east-1:015903983606:function:odoo-zazu-prod-validatePayment:6",
+        "Description": "Current Lambda function version",
+        "ExportName": "sls-odoo-zazu-prod-ValidatePaymentLambdaFunctionQualifiedArn"
+      },
+      {
+        "OutputKey": "HttpApiId",
+        "OutputValue": "wbsc7a4s85",
+        "Description": "Id of the HTTP API",
+        "ExportName": "sls-odoo-zazu-prod-HttpApiId"
+      },
+      {
+        "OutputKey": "GetValidationByIdLambdaFunctionQualifiedArn",
+        "OutputValue": "arn:aws:lambda:us-east-1:015903983606:function:odoo-zazu-prod-getValidationById:6",
+        "Description": "Current Lambda function version",
+        "ExportName": "sls-odoo-zazu-prod-GetValidationByIdLambdaFunctionQualifiedArn"
+      },
+      {
+        "OutputKey": "ProcessScreenshotLambdaFunctionQualifiedArn",
+        "OutputValue": "arn:aws:lambda:us-east-1:015903983606:function:odoo-zazu-prod-processScreenshot:6",
+        "Description": "Current Lambda function version",
+        "ExportName": "sls-odoo-zazu-prod-ProcessScreenshotLambdaFunctionQualifiedArn"
+      },
+      {
+        "OutputKey": "GetDuplicateValidationsLambdaFunctionQualifiedArn",
+        "OutputValue": "arn:aws:lambda:us-east-1:015903983606:function:odoo-zazu-prod-getDuplicateValidations:6",
+        "Description": "Current Lambda function version",
+        "ExportName": "sls-odoo-zazu-prod-GetDuplicateValidationsLambdaFunctionQualifiedArn"
+      },
+      {
+        "OutputKey": "ServerlessDeploymentBucketName",
+        "OutputValue": "serverless-framework-deployments-us-east-1-ce1848ae-0327",
+        "ExportName": "sls-odoo-zazu-prod-ServerlessDeploymentBucketName"
+      },
+      {
+        "OutputKey": "HttpApiUrl",
+        "OutputValue": "https://wbsc7a4s85.execute-api.us-east-1.amazonaws.com",
+        "Description": "URL of the HTTP API",
+        "ExportName": "sls-odoo-zazu-prod-HttpApiUrl"
+      }
+    ],
+    "compiledCloudFormationTemplate": {
+      "AWSTemplateFormatVersion": "2010-09-09",
+      "Description": "The AWS CloudFormation template for this Serverless application",
+      "Resources": {
+        "ValidateFromOdooLogGroup": {
+          "Type": "AWS::Logs::LogGroup",
+          "Properties": {
+            "LogGroupName": "/aws/lambda/odoo-zazu-prod-validateFromOdoo",
+            "RetentionInDays": 14
+          }
+        },
+        "ProcessWhatsAppImageLogGroup": {
+          "Type": "AWS::Logs::LogGroup",
+          "Properties": {
+            "LogGroupName": "/aws/lambda/odoo-zazu-prod-processWhatsAppImage",
+            "RetentionInDays": 14
+          }
+        },
+        "ProcessScreenshotLogGroup": {
+          "Type": "AWS::Logs::LogGroup",
+          "Properties": {
+            "LogGroupName": "/aws/lambda/odoo-zazu-prod-processScreenshot",
+            "RetentionInDays": 14
+          }
+        },
+        "GetDuplicateValidationsLogGroup": {
+          "Type": "AWS::Logs::LogGroup",
+          "Properties": {
+            "LogGroupName": "/aws/lambda/odoo-zazu-prod-getDuplicateValidations",
+            "RetentionInDays": 14
+          }
+        },
+        "ValidatePaymentLogGroup": {
+          "Type": "AWS::Logs::LogGroup",
+          "Properties": {
+            "LogGroupName": "/aws/lambda/odoo-zazu-prod-validatePayment",
+            "RetentionInDays": 14
+          }
+        },
+        "GetValidationsLogGroup": {
+          "Type": "AWS::Logs::LogGroup",
+          "Properties": {
+            "LogGroupName": "/aws/lambda/odoo-zazu-prod-getValidations",
+            "RetentionInDays": 14
+          }
+        },
+        "GetValidationByIdLogGroup": {
+          "Type": "AWS::Logs::LogGroup",
+          "Properties": {
+            "LogGroupName": "/aws/lambda/odoo-zazu-prod-getValidationById",
+            "RetentionInDays": 14
+          }
+        },
+        "GetPendingValidationsLogGroup": {
+          "Type": "AWS::Logs::LogGroup",
+          "Properties": {
+            "LogGroupName": "/aws/lambda/odoo-zazu-prod-getPendingValidations",
+            "RetentionInDays": 14
+          }
+        },
+        "ManualReviewLogGroup": {
+          "Type": "AWS::Logs::LogGroup",
+          "Properties": {
+            "LogGroupName": "/aws/lambda/odoo-zazu-prod-manualReview",
+            "RetentionInDays": 14
+          }
+        },
+        "IamRoleLambdaExecution": {
+          "Type": "AWS::IAM::Role",
+          "Properties": {
+            "AssumeRolePolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Principal": {
+                    "Service": [
+                      "lambda.amazonaws.com"
+                    ]
+                  },
+                  "Action": [
+                    "sts:AssumeRole"
+                  ]
+                }
+              ]
+            },
+            "Policies": [
+              {
+                "PolicyName": {
+                  "Fn::Join": [
+                    "-",
+                    [
+                      "odoo-zazu",
+                      "prod",
+                      "lambda"
+                    ]
+                  ]
+                },
+                "PolicyDocument": {
+                  "Version": "2012-10-17",
+                  "Statement": [
+                    {
+                      "Effect": "Allow",
+                      "Action": [
+                        "logs:CreateLogStream",
+                        "logs:CreateLogGroup",
+                        "logs:TagResource"
+                      ],
+                      "Resource": [
+                        {
+                          "Fn::Sub": "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/odoo-zazu-prod*:*"
+                        }
+                      ]
+                    },
+                    {
+                      "Effect": "Allow",
+                      "Action": [
+                        "logs:PutLogEvents"
+                      ],
+                      "Resource": [
+                        {
+                          "Fn::Sub": "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/odoo-zazu-prod*:*:*"
+                        }
+                      ]
+                    },
+                    {
+                      "Effect": "Allow",
+                      "Action": [
+                        "dynamodb:Query",
+                        "dynamodb:Scan",
+                        "dynamodb:GetItem",
+                        "dynamodb:PutItem",
+                        "dynamodb:UpdateItem",
+                        "dynamodb:DeleteItem",
+                        "dynamodb:DescribeTable"
+                      ],
+                      "Resource": [
+                        "arn:aws:dynamodb:us-east-1:015903983606:table/zazu-validations-prod",
+                        "arn:aws:dynamodb:us-east-1:015903983606:table/zazu-validations-prod/index/*",
+                        "arn:aws:dynamodb:us-east-1:015903983606:table/zazu-notifications-prod",
+                        "arn:aws:dynamodb:us-east-1:015903983606:table/zazu-notifications-prod/index/*"
+                      ]
+                    },
+                    {
+                      "Effect": "Allow",
+                      "Action": [
+                        "s3:GetObject",
+                        "s3:PutObject",
+                        "s3:DeleteObject",
+                        "s3:ListBucket"
+                      ],
+                      "Resource": [
+                        "arn:aws:s3:::zazu-screenshots-prod",
+                        "arn:aws:s3:::zazu-screenshots-prod/*"
+                      ]
+                    },
+                    {
+                      "Effect": "Allow",
+                      "Action": [
+                        "textract:DetectDocumentText",
+                        "textract:AnalyzeDocument"
+                      ],
+                      "Resource": "*"
+                    },
+                    {
+                      "Effect": "Allow",
+                      "Action": [
+                        "lambda:InvokeFunction"
+                      ],
+                      "Resource": "arn:aws:lambda:us-east-1:015903983606:function:odoo-zazu-prod-*"
+                    }
+                  ]
+                }
+              }
+            ],
+            "Path": "/",
+            "RoleName": {
+              "Fn::Join": [
+                "-",
+                [
+                  "odoo-zazu",
+                  "prod",
+                  {
+                    "Ref": "AWS::Region"
+                  },
+                  "lambdaRole"
+                ]
+              ]
+            }
+          }
+        },
+        "ValidateFromOdooLambdaFunction": {
+          "Type": "AWS::Lambda::Function",
+          "Properties": {
+            "Code": {
+              "S3Bucket": "serverless-framework-deployments-us-east-1-ce1848ae-0327",
+              "S3Key": "serverless/odoo-zazu/prod/1771002830673-2026-02-13T17:13:50.673Z/odoo-zazu.zip"
+            },
+            "Handler": "validation_handler.validate_from_odoo",
+            "Runtime": "python3.12",
+            "FunctionName": "odoo-zazu-prod-validateFromOdoo",
+            "MemorySize": 256,
+            "Timeout": 29,
+            "Environment": {
+              "Variables": {
+                "NOTIFICATIONS_TABLE": "zazu-notifications-prod",
+                "VALIDATIONS_TABLE": "zazu-validations-prod",
+                "SCREENSHOTS_BUCKET": "zazu-screenshots-prod",
+                "WHATSAPP_TOKEN": "<REDACTED>",
+                "ODOO_CALLBACK_URL": "https://zazuexpress2-staging-main-28468195.dev.odoo.com/whatsapp/payment/validate",
+                "ODOO_CALLBACK_TOKEN": "<REDACTED>"
+              }
+            },
+            "Role": {
+              "Fn::GetAtt": [
+                "IamRoleLambdaExecution",
+                "Arn"
+              ]
+            }
+          },
+          "DependsOn": [
+            "ValidateFromOdooLogGroup"
+          ]
+        },
+        "ProcessWhatsAppImageLambdaFunction": {
+          "Type": "AWS::Lambda::Function",
+          "Properties": {
+            "Code": {
+              "S3Bucket": "serverless-framework-deployments-us-east-1-ce1848ae-0327",
+              "S3Key": "serverless/odoo-zazu/prod/1771002830673-2026-02-13T17:13:50.673Z/odoo-zazu.zip"
+            },
+            "Handler": "validation_handler.process_whatsapp_image",
+            "Runtime": "python3.12",
+            "FunctionName": "odoo-zazu-prod-processWhatsAppImage",
+            "MemorySize": 256,
+            "Timeout": 29,
+            "Environment": {
+              "Variables": {
+                "NOTIFICATIONS_TABLE": "zazu-notifications-prod",
+                "VALIDATIONS_TABLE": "zazu-validations-prod",
+                "SCREENSHOTS_BUCKET": "zazu-screenshots-prod",
+                "WHATSAPP_TOKEN": "<REDACTED>",
+                "ODOO_CALLBACK_URL": "https://zazuexpress2-staging-main-28468195.dev.odoo.com/whatsapp/payment/validate",
+                "ODOO_CALLBACK_TOKEN": "<REDACTED>"
+              }
+            },
+            "Role": {
+              "Fn::GetAtt": [
+                "IamRoleLambdaExecution",
+                "Arn"
+              ]
+            }
+          },
+          "DependsOn": [
+            "ProcessWhatsAppImageLogGroup"
+          ]
+        },
+        "ProcessScreenshotLambdaFunction": {
+          "Type": "AWS::Lambda::Function",
+          "Properties": {
+            "Code": {
+              "S3Bucket": "serverless-framework-deployments-us-east-1-ce1848ae-0327",
+              "S3Key": "serverless/odoo-zazu/prod/1771002830673-2026-02-13T17:13:50.673Z/odoo-zazu.zip"
+            },
+            "Handler": "validation_handler.process_screenshot",
+            "Runtime": "python3.12",
+            "FunctionName": "odoo-zazu-prod-processScreenshot",
+            "MemorySize": 256,
+            "Timeout": 29,
+            "Environment": {
+              "Variables": {
+                "NOTIFICATIONS_TABLE": "zazu-notifications-prod",
+                "VALIDATIONS_TABLE": "zazu-validations-prod",
+                "SCREENSHOTS_BUCKET": "zazu-screenshots-prod",
+                "WHATSAPP_TOKEN": "<REDACTED>",
+                "ODOO_CALLBACK_URL": "https://zazuexpress2-staging-main-28468195.dev.odoo.com/whatsapp/payment/validate",
+                "ODOO_CALLBACK_TOKEN": "<REDACTED>"
+              }
+            },
+            "Role": {
+              "Fn::GetAtt": [
+                "IamRoleLambdaExecution",
+                "Arn"
+              ]
+            }
+          },
+          "DependsOn": [
+            "ProcessScreenshotLogGroup"
+          ]
+        },
+        "GetDuplicateValidationsLambdaFunction": {
+          "Type": "AWS::Lambda::Function",
+          "Properties": {
+            "Code": {
+              "S3Bucket": "serverless-framework-deployments-us-east-1-ce1848ae-0327",
+              "S3Key": "serverless/odoo-zazu/prod/1771002830673-2026-02-13T17:13:50.673Z/odoo-zazu.zip"
+            },
+            "Handler": "validation_handler.get_duplicate_validations",
+            "Runtime": "python3.12",
+            "FunctionName": "odoo-zazu-prod-getDuplicateValidations",
+            "MemorySize": 256,
+            "Timeout": 29,
+            "Environment": {
+              "Variables": {
+                "NOTIFICATIONS_TABLE": "zazu-notifications-prod",
+                "VALIDATIONS_TABLE": "zazu-validations-prod",
+                "SCREENSHOTS_BUCKET": "zazu-screenshots-prod",
+                "WHATSAPP_TOKEN": "<REDACTED>",
+                "ODOO_CALLBACK_URL": "https://zazuexpress2-staging-main-28468195.dev.odoo.com/whatsapp/payment/validate",
+                "ODOO_CALLBACK_TOKEN": "<REDACTED>"
+              }
+            },
+            "Role": {
+              "Fn::GetAtt": [
+                "IamRoleLambdaExecution",
+                "Arn"
+              ]
+            }
+          },
+          "DependsOn": [
+            "GetDuplicateValidationsLogGroup"
+          ]
+        },
+        "ValidatePaymentLambdaFunction": {
+          "Type": "AWS::Lambda::Function",
+          "Properties": {
+            "Code": {
+              "S3Bucket": "serverless-framework-deployments-us-east-1-ce1848ae-0327",
+              "S3Key": "serverless/odoo-zazu/prod/1771002830673-2026-02-13T17:13:50.673Z/odoo-zazu.zip"
+            },
+            "Handler": "validation_handler.validate_payment",
+            "Runtime": "python3.12",
+            "FunctionName": "odoo-zazu-prod-validatePayment",
+            "MemorySize": 256,
+            "Timeout": 29,
+            "Environment": {
+              "Variables": {
+                "NOTIFICATIONS_TABLE": "zazu-notifications-prod",
+                "VALIDATIONS_TABLE": "zazu-validations-prod",
+                "SCREENSHOTS_BUCKET": "zazu-screenshots-prod",
+                "WHATSAPP_TOKEN": "<REDACTED>",
+                "ODOO_CALLBACK_URL": "https://zazuexpress2-staging-main-28468195.dev.odoo.com/whatsapp/payment/validate",
+                "ODOO_CALLBACK_TOKEN": "<REDACTED>"
+              }
+            },
+            "Role": {
+              "Fn::GetAtt": [
+                "IamRoleLambdaExecution",
+                "Arn"
+              ]
+            }
+          },
+          "DependsOn": [
+            "ValidatePaymentLogGroup"
+          ]
+        },
+        "GetValidationsLambdaFunction": {
+          "Type": "AWS::Lambda::Function",
+          "Properties": {
+            "Code": {
+              "S3Bucket": "serverless-framework-deployments-us-east-1-ce1848ae-0327",
+              "S3Key": "serverless/odoo-zazu/prod/1771002830673-2026-02-13T17:13:50.673Z/odoo-zazu.zip"
+            },
+            "Handler": "validation_handler.get_validations",
+            "Runtime": "python3.12",
+            "FunctionName": "odoo-zazu-prod-getValidations",
+            "MemorySize": 256,
+            "Timeout": 29,
+            "Environment": {
+              "Variables": {
+                "NOTIFICATIONS_TABLE": "zazu-notifications-prod",
+                "VALIDATIONS_TABLE": "zazu-validations-prod",
+                "SCREENSHOTS_BUCKET": "zazu-screenshots-prod",
+                "WHATSAPP_TOKEN": "<REDACTED>",
+                "ODOO_CALLBACK_URL": "https://zazuexpress2-staging-main-28468195.dev.odoo.com/whatsapp/payment/validate",
+                "ODOO_CALLBACK_TOKEN": "<REDACTED>"
+              }
+            },
+            "Role": {
+              "Fn::GetAtt": [
+                "IamRoleLambdaExecution",
+                "Arn"
+              ]
+            }
+          },
+          "DependsOn": [
+            "GetValidationsLogGroup"
+          ]
+        },
+        "GetValidationByIdLambdaFunction": {
+          "Type": "AWS::Lambda::Function",
+          "Properties": {
+            "Code": {
+              "S3Bucket": "serverless-framework-deployments-us-east-1-ce1848ae-0327",
+              "S3Key": "serverless/odoo-zazu/prod/1771002830673-2026-02-13T17:13:50.673Z/odoo-zazu.zip"
+            },
+            "Handler": "validation_handler.get_validation_by_id",
+            "Runtime": "python3.12",
+            "FunctionName": "odoo-zazu-prod-getValidationById",
+            "MemorySize": 256,
+            "Timeout": 29,
+            "Environment": {
+              "Variables": {
+                "NOTIFICATIONS_TABLE": "zazu-notifications-prod",
+                "VALIDATIONS_TABLE": "zazu-validations-prod",
+                "SCREENSHOTS_BUCKET": "zazu-screenshots-prod",
+                "WHATSAPP_TOKEN": "<REDACTED>",
+                "ODOO_CALLBACK_URL": "https://zazuexpress2-staging-main-28468195.dev.odoo.com/whatsapp/payment/validate",
+                "ODOO_CALLBACK_TOKEN": "<REDACTED>"
+              }
+            },
+            "Role": {
+              "Fn::GetAtt": [
+                "IamRoleLambdaExecution",
+                "Arn"
+              ]
+            }
+          },
+          "DependsOn": [
+            "GetValidationByIdLogGroup"
+          ]
+        },
+        "GetPendingValidationsLambdaFunction": {
+          "Type": "AWS::Lambda::Function",
+          "Properties": {
+            "Code": {
+              "S3Bucket": "serverless-framework-deployments-us-east-1-ce1848ae-0327",
+              "S3Key": "serverless/odoo-zazu/prod/1771002830673-2026-02-13T17:13:50.673Z/odoo-zazu.zip"
+            },
+            "Handler": "validation_handler.get_pending_validations",
+            "Runtime": "python3.12",
+            "FunctionName": "odoo-zazu-prod-getPendingValidations",
+            "MemorySize": 256,
+            "Timeout": 29,
+            "Environment": {
+              "Variables": {
+                "NOTIFICATIONS_TABLE": "zazu-notifications-prod",
+                "VALIDATIONS_TABLE": "zazu-validations-prod",
+                "SCREENSHOTS_BUCKET": "zazu-screenshots-prod",
+                "WHATSAPP_TOKEN": "<REDACTED>",
+                "ODOO_CALLBACK_URL": "https://zazuexpress2-staging-main-28468195.dev.odoo.com/whatsapp/payment/validate",
+                "ODOO_CALLBACK_TOKEN": "<REDACTED>"
+              }
+            },
+            "Role": {
+              "Fn::GetAtt": [
+                "IamRoleLambdaExecution",
+                "Arn"
+              ]
+            }
+          },
+          "DependsOn": [
+            "GetPendingValidationsLogGroup"
+          ]
+        },
+        "ManualReviewLambdaFunction": {
+          "Type": "AWS::Lambda::Function",
+          "Properties": {
+            "Code": {
+              "S3Bucket": "serverless-framework-deployments-us-east-1-ce1848ae-0327",
+              "S3Key": "serverless/odoo-zazu/prod/1771002830673-2026-02-13T17:13:50.673Z/odoo-zazu.zip"
+            },
+            "Handler": "validation_handler.manual_review",
+            "Runtime": "python3.12",
+            "FunctionName": "odoo-zazu-prod-manualReview",
+            "MemorySize": 256,
+            "Timeout": 29,
+            "Environment": {
+              "Variables": {
+                "NOTIFICATIONS_TABLE": "zazu-notifications-prod",
+                "VALIDATIONS_TABLE": "zazu-validations-prod",
+                "SCREENSHOTS_BUCKET": "zazu-screenshots-prod",
+                "WHATSAPP_TOKEN": "<REDACTED>",
+                "ODOO_CALLBACK_URL": "https://zazuexpress2-staging-main-28468195.dev.odoo.com/whatsapp/payment/validate",
+                "ODOO_CALLBACK_TOKEN": "<REDACTED>"
+              }
+            },
+            "Role": {
+              "Fn::GetAtt": [
+                "IamRoleLambdaExecution",
+                "Arn"
+              ]
+            }
+          },
+          "DependsOn": [
+            "ManualReviewLogGroup"
+          ]
+        },
+        "ValidateFromOdooLambdaVersionTXNwvbA6iyTuwrBMebHdAX4w0DPla9WVxQsfbD7X8": {
+          "Type": "AWS::Lambda::Version",
+          "DeletionPolicy": "Retain",
+          "Properties": {
+            "FunctionName": {
+              "Ref": "ValidateFromOdooLambdaFunction"
+            },
+            "CodeSha256": "0GT2310b6tDCKYjilPNj7rFLG6ZWDtgsI7jNEu2w2Uk="
+          }
+        },
+        "ProcessWhatsAppImageLambdaVersionvDZ6iuwrXmXHlSVEDVvh7scFphQEp6zLMcFPDNXgs": {
+          "Type": "AWS::Lambda::Version",
+          "DeletionPolicy": "Retain",
+          "Properties": {
+            "FunctionName": {
+              "Ref": "ProcessWhatsAppImageLambdaFunction"
+            },
+            "CodeSha256": "0GT2310b6tDCKYjilPNj7rFLG6ZWDtgsI7jNEu2w2Uk="
+          }
+        },
+        "ProcessScreenshotLambdaVersionfLCo7ikRKgtH0pdoienWZq1WBy2xEFNtf8vKjz8": {
+          "Type": "AWS::Lambda::Version",
+          "DeletionPolicy": "Retain",
+          "Properties": {
+            "FunctionName": {
+              "Ref": "ProcessScreenshotLambdaFunction"
+            },
+            "CodeSha256": "0GT2310b6tDCKYjilPNj7rFLG6ZWDtgsI7jNEu2w2Uk="
+          }
+        },
+        "GetDuplicateValidationsLambdaVersionJ9RdZzEbCqr5E2IVaS2pLAbsXi9GeFDTU5noyCAh1f8": {
+          "Type": "AWS::Lambda::Version",
+          "DeletionPolicy": "Retain",
+          "Properties": {
+            "FunctionName": {
+              "Ref": "GetDuplicateValidationsLambdaFunction"
+            },
+            "CodeSha256": "0GT2310b6tDCKYjilPNj7rFLG6ZWDtgsI7jNEu2w2Uk="
+          }
+        },
+        "ValidatePaymentLambdaVersiongkKxDdtOZTPBds7V0DeG8L75jbOsUo54UuRkrJWWfOc": {
+          "Type": "AWS::Lambda::Version",
+          "DeletionPolicy": "Retain",
+          "Properties": {
+            "FunctionName": {
+              "Ref": "ValidatePaymentLambdaFunction"
+            },
+            "CodeSha256": "0GT2310b6tDCKYjilPNj7rFLG6ZWDtgsI7jNEu2w2Uk="
+          }
+        },
+        "GetValidationsLambdaVersionWRE9pyts1SNMzc9ExmGb2QTXzfzdD3CbaTpILcrdqU": {
+          "Type": "AWS::Lambda::Version",
+          "DeletionPolicy": "Retain",
+          "Properties": {
+            "FunctionName": {
+              "Ref": "GetValidationsLambdaFunction"
+            },
+            "CodeSha256": "0GT2310b6tDCKYjilPNj7rFLG6ZWDtgsI7jNEu2w2Uk="
+          }
+        },
+        "GetValidationByIdLambdaVersionp8GYPhZhw4NSz4IEsAfmjAbywFvK6Bz9sddwWyfeM": {
+          "Type": "AWS::Lambda::Version",
+          "DeletionPolicy": "Retain",
+          "Properties": {
+            "FunctionName": {
+              "Ref": "GetValidationByIdLambdaFunction"
+            },
+            "CodeSha256": "0GT2310b6tDCKYjilPNj7rFLG6ZWDtgsI7jNEu2w2Uk="
+          }
+        },
+        "GetPendingValidationsLambdaVersionLSVKwPfpxe9gz4EJ9rJ3MWxBFejHDfcQGsbVU2cQ": {
+          "Type": "AWS::Lambda::Version",
+          "DeletionPolicy": "Retain",
+          "Properties": {
+            "FunctionName": {
+              "Ref": "GetPendingValidationsLambdaFunction"
+            },
+            "CodeSha256": "0GT2310b6tDCKYjilPNj7rFLG6ZWDtgsI7jNEu2w2Uk="
+          }
+        },
+        "ManualReviewLambdaVersionD3kJszbg6okCod62EHDGHUty8TBbZ9MrZzMYcoF8": {
+          "Type": "AWS::Lambda::Version",
+          "DeletionPolicy": "Retain",
+          "Properties": {
+            "FunctionName": {
+              "Ref": "ManualReviewLambdaFunction"
+            },
+            "CodeSha256": "0GT2310b6tDCKYjilPNj7rFLG6ZWDtgsI7jNEu2w2Uk="
+          }
+        },
+        "HttpApi": {
+          "Type": "AWS::ApiGatewayV2::Api",
+          "Properties": {
+            "Name": "prod-odoo-zazu",
+            "ProtocolType": "HTTP"
+          }
+        },
+        "HttpApiStage": {
+          "Type": "AWS::ApiGatewayV2::Stage",
+          "Properties": {
+            "ApiId": {
+              "Ref": "HttpApi"
+            },
+            "StageName": "$default",
+            "AutoDeploy": true,
+            "DefaultRouteSettings": {
+              "DetailedMetricsEnabled": false
+            }
+          }
+        },
+        "ValidateFromOdooLambdaPermissionHttpApi": {
+          "Type": "AWS::Lambda::Permission",
+          "Properties": {
+            "FunctionName": {
+              "Fn::GetAtt": [
+                "ValidateFromOdooLambdaFunction",
+                "Arn"
+              ]
+            },
+            "Action": "lambda:InvokeFunction",
+            "Principal": "apigateway.amazonaws.com",
+            "SourceArn": {
+              "Fn::Join": [
+                "",
+                [
+                  "arn:",
+                  {
+                    "Ref": "AWS::Partition"
+                  },
+                  ":execute-api:",
+                  {
+                    "Ref": "AWS::Region"
+                  },
+                  ":",
+                  {
+                    "Ref": "AWS::AccountId"
+                  },
+                  ":",
+                  {
+                    "Ref": "HttpApi"
+                  },
+                  "/*"
+                ]
+              ]
+            }
+          }
+        },
+        "HttpApiIntegrationValidateFromOdoo": {
+          "Type": "AWS::ApiGatewayV2::Integration",
+          "Properties": {
+            "ApiId": {
+              "Ref": "HttpApi"
+            },
+            "IntegrationType": "AWS_PROXY",
+            "IntegrationUri": {
+              "Fn::GetAtt": [
+                "ValidateFromOdooLambdaFunction",
+                "Arn"
+              ]
+            },
+            "PayloadFormatVersion": "2.0",
+            "TimeoutInMillis": 30000
+          }
+        },
+        "HttpApiRoutePostValidateDashfromDashodoo": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "ApiId": {
+              "Ref": "HttpApi"
+            },
+            "RouteKey": "POST /validate-from-odoo",
+            "Target": {
+              "Fn::Join": [
+                "/",
+                [
+                  "integrations",
+                  {
+                    "Ref": "HttpApiIntegrationValidateFromOdoo"
+                  }
+                ]
+              ]
+            }
+          },
+          "DependsOn": "HttpApiIntegrationValidateFromOdoo"
+        },
+        "GetDuplicateValidationsLambdaPermissionHttpApi": {
+          "Type": "AWS::Lambda::Permission",
+          "Properties": {
+            "FunctionName": {
+              "Fn::GetAtt": [
+                "GetDuplicateValidationsLambdaFunction",
+                "Arn"
+              ]
+            },
+            "Action": "lambda:InvokeFunction",
+            "Principal": "apigateway.amazonaws.com",
+            "SourceArn": {
+              "Fn::Join": [
+                "",
+                [
+                  "arn:",
+                  {
+                    "Ref": "AWS::Partition"
+                  },
+                  ":execute-api:",
+                  {
+                    "Ref": "AWS::Region"
+                  },
+                  ":",
+                  {
+                    "Ref": "AWS::AccountId"
+                  },
+                  ":",
+                  {
+                    "Ref": "HttpApi"
+                  },
+                  "/*"
+                ]
+              ]
+            }
+          }
+        },
+        "HttpApiIntegrationGetDuplicateValidations": {
+          "Type": "AWS::ApiGatewayV2::Integration",
+          "Properties": {
+            "ApiId": {
+              "Ref": "HttpApi"
+            },
+            "IntegrationType": "AWS_PROXY",
+            "IntegrationUri": {
+              "Fn::GetAtt": [
+                "GetDuplicateValidationsLambdaFunction",
+                "Arn"
+              ]
+            },
+            "PayloadFormatVersion": "2.0",
+            "TimeoutInMillis": 30000
+          }
+        },
+        "HttpApiRouteGetValidationsDuplicates": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "ApiId": {
+              "Ref": "HttpApi"
+            },
+            "RouteKey": "GET /validations/duplicates",
+            "Target": {
+              "Fn::Join": [
+                "/",
+                [
+                  "integrations",
+                  {
+                    "Ref": "HttpApiIntegrationGetDuplicateValidations"
+                  }
+                ]
+              ]
+            }
+          },
+          "DependsOn": "HttpApiIntegrationGetDuplicateValidations"
+        },
+        "GetValidationsLambdaPermissionHttpApi": {
+          "Type": "AWS::Lambda::Permission",
+          "Properties": {
+            "FunctionName": {
+              "Fn::GetAtt": [
+                "GetValidationsLambdaFunction",
+                "Arn"
+              ]
+            },
+            "Action": "lambda:InvokeFunction",
+            "Principal": "apigateway.amazonaws.com",
+            "SourceArn": {
+              "Fn::Join": [
+                "",
+                [
+                  "arn:",
+                  {
+                    "Ref": "AWS::Partition"
+                  },
+                  ":execute-api:",
+                  {
+                    "Ref": "AWS::Region"
+                  },
+                  ":",
+                  {
+                    "Ref": "AWS::AccountId"
+                  },
+                  ":",
+                  {
+                    "Ref": "HttpApi"
+                  },
+                  "/*"
+                ]
+              ]
+            }
+          }
+        },
+        "HttpApiIntegrationGetValidations": {
+          "Type": "AWS::ApiGatewayV2::Integration",
+          "Properties": {
+            "ApiId": {
+              "Ref": "HttpApi"
+            },
+            "IntegrationType": "AWS_PROXY",
+            "IntegrationUri": {
+              "Fn::GetAtt": [
+                "GetValidationsLambdaFunction",
+                "Arn"
+              ]
+            },
+            "PayloadFormatVersion": "2.0",
+            "TimeoutInMillis": 30000
+          }
+        },
+        "HttpApiRouteGetValidations": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "ApiId": {
+              "Ref": "HttpApi"
+            },
+            "RouteKey": "GET /validations",
+            "Target": {
+              "Fn::Join": [
+                "/",
+                [
+                  "integrations",
+                  {
+                    "Ref": "HttpApiIntegrationGetValidations"
+                  }
+                ]
+              ]
+            }
+          },
+          "DependsOn": "HttpApiIntegrationGetValidations"
+        },
+        "GetValidationByIdLambdaPermissionHttpApi": {
+          "Type": "AWS::Lambda::Permission",
+          "Properties": {
+            "FunctionName": {
+              "Fn::GetAtt": [
+                "GetValidationByIdLambdaFunction",
+                "Arn"
+              ]
+            },
+            "Action": "lambda:InvokeFunction",
+            "Principal": "apigateway.amazonaws.com",
+            "SourceArn": {
+              "Fn::Join": [
+                "",
+                [
+                  "arn:",
+                  {
+                    "Ref": "AWS::Partition"
+                  },
+                  ":execute-api:",
+                  {
+                    "Ref": "AWS::Region"
+                  },
+                  ":",
+                  {
+                    "Ref": "AWS::AccountId"
+                  },
+                  ":",
+                  {
+                    "Ref": "HttpApi"
+                  },
+                  "/*"
+                ]
+              ]
+            }
+          }
+        },
+        "HttpApiIntegrationGetValidationById": {
+          "Type": "AWS::ApiGatewayV2::Integration",
+          "Properties": {
+            "ApiId": {
+              "Ref": "HttpApi"
+            },
+            "IntegrationType": "AWS_PROXY",
+            "IntegrationUri": {
+              "Fn::GetAtt": [
+                "GetValidationByIdLambdaFunction",
+                "Arn"
+              ]
+            },
+            "PayloadFormatVersion": "2.0",
+            "TimeoutInMillis": 30000
+          }
+        },
+        "HttpApiRouteGetValidationsIdVar": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "ApiId": {
+              "Ref": "HttpApi"
+            },
+            "RouteKey": "GET /validations/{id}",
+            "Target": {
+              "Fn::Join": [
+                "/",
+                [
+                  "integrations",
+                  {
+                    "Ref": "HttpApiIntegrationGetValidationById"
+                  }
+                ]
+              ]
+            }
+          },
+          "DependsOn": "HttpApiIntegrationGetValidationById"
+        },
+        "GetPendingValidationsLambdaPermissionHttpApi": {
+          "Type": "AWS::Lambda::Permission",
+          "Properties": {
+            "FunctionName": {
+              "Fn::GetAtt": [
+                "GetPendingValidationsLambdaFunction",
+                "Arn"
+              ]
+            },
+            "Action": "lambda:InvokeFunction",
+            "Principal": "apigateway.amazonaws.com",
+            "SourceArn": {
+              "Fn::Join": [
+                "",
+                [
+                  "arn:",
+                  {
+                    "Ref": "AWS::Partition"
+                  },
+                  ":execute-api:",
+                  {
+                    "Ref": "AWS::Region"
+                  },
+                  ":",
+                  {
+                    "Ref": "AWS::AccountId"
+                  },
+                  ":",
+                  {
+                    "Ref": "HttpApi"
+                  },
+                  "/*"
+                ]
+              ]
+            }
+          }
+        },
+        "HttpApiIntegrationGetPendingValidations": {
+          "Type": "AWS::ApiGatewayV2::Integration",
+          "Properties": {
+            "ApiId": {
+              "Ref": "HttpApi"
+            },
+            "IntegrationType": "AWS_PROXY",
+            "IntegrationUri": {
+              "Fn::GetAtt": [
+                "GetPendingValidationsLambdaFunction",
+                "Arn"
+              ]
+            },
+            "PayloadFormatVersion": "2.0",
+            "TimeoutInMillis": 30000
+          }
+        },
+        "HttpApiRouteGetValidationsPending": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "ApiId": {
+              "Ref": "HttpApi"
+            },
+            "RouteKey": "GET /validations/pending",
+            "Target": {
+              "Fn::Join": [
+                "/",
+                [
+                  "integrations",
+                  {
+                    "Ref": "HttpApiIntegrationGetPendingValidations"
+                  }
+                ]
+              ]
+            }
+          },
+          "DependsOn": "HttpApiIntegrationGetPendingValidations"
+        },
+        "ManualReviewLambdaPermissionHttpApi": {
+          "Type": "AWS::Lambda::Permission",
+          "Properties": {
+            "FunctionName": {
+              "Fn::GetAtt": [
+                "ManualReviewLambdaFunction",
+                "Arn"
+              ]
+            },
+            "Action": "lambda:InvokeFunction",
+            "Principal": "apigateway.amazonaws.com",
+            "SourceArn": {
+              "Fn::Join": [
+                "",
+                [
+                  "arn:",
+                  {
+                    "Ref": "AWS::Partition"
+                  },
+                  ":execute-api:",
+                  {
+                    "Ref": "AWS::Region"
+                  },
+                  ":",
+                  {
+                    "Ref": "AWS::AccountId"
+                  },
+                  ":",
+                  {
+                    "Ref": "HttpApi"
+                  },
+                  "/*"
+                ]
+              ]
+            }
+          }
+        },
+        "HttpApiIntegrationManualReview": {
+          "Type": "AWS::ApiGatewayV2::Integration",
+          "Properties": {
+            "ApiId": {
+              "Ref": "HttpApi"
+            },
+            "IntegrationType": "AWS_PROXY",
+            "IntegrationUri": {
+              "Fn::GetAtt": [
+                "ManualReviewLambdaFunction",
+                "Arn"
+              ]
+            },
+            "PayloadFormatVersion": "2.0",
+            "TimeoutInMillis": 30000
+          }
+        },
+        "HttpApiRoutePutValidationsIdVarReview": {
+          "Type": "AWS::ApiGatewayV2::Route",
+          "Properties": {
+            "ApiId": {
+              "Ref": "HttpApi"
+            },
+            "RouteKey": "PUT /validations/{id}/review",
+            "Target": {
+              "Fn::Join": [
+                "/",
+                [
+                  "integrations",
+                  {
+                    "Ref": "HttpApiIntegrationManualReview"
+                  }
+                ]
+              ]
+            }
+          },
+          "DependsOn": "HttpApiIntegrationManualReview"
+        }
+      },
+      "Outputs": {
+        "ServerlessDeploymentBucketName": {
+          "Value": "serverless-framework-deployments-us-east-1-ce1848ae-0327",
+          "Export": {
+            "Name": "sls-odoo-zazu-prod-ServerlessDeploymentBucketName"
+          }
+        },
+        "ValidateFromOdooLambdaFunctionQualifiedArn": {
+          "Description": "Current Lambda function version",
+          "Value": {
+            "Ref": "ValidateFromOdooLambdaVersionTXNwvbA6iyTuwrBMebHdAX4w0DPla9WVxQsfbD7X8"
+          },
+          "Export": {
+            "Name": "sls-odoo-zazu-prod-ValidateFromOdooLambdaFunctionQualifiedArn"
+          }
+        },
+        "ProcessWhatsAppImageLambdaFunctionQualifiedArn": {
+          "Description": "Current Lambda function version",
+          "Value": {
+            "Ref": "ProcessWhatsAppImageLambdaVersionvDZ6iuwrXmXHlSVEDVvh7scFphQEp6zLMcFPDNXgs"
+          },
+          "Export": {
+            "Name": "sls-odoo-zazu-prod-ProcessWhatsAppImageLambdaFunctionQualifiedArn"
+          }
+        },
+        "ProcessScreenshotLambdaFunctionQualifiedArn": {
+          "Description": "Current Lambda function version",
+          "Value": {
+            "Ref": "ProcessScreenshotLambdaVersionfLCo7ikRKgtH0pdoienWZq1WBy2xEFNtf8vKjz8"
+          },
+          "Export": {
+            "Name": "sls-odoo-zazu-prod-ProcessScreenshotLambdaFunctionQualifiedArn"
+          }
+        },
+        "GetDuplicateValidationsLambdaFunctionQualifiedArn": {
+          "Description": "Current Lambda function version",
+          "Value": {
+            "Ref": "GetDuplicateValidationsLambdaVersionJ9RdZzEbCqr5E2IVaS2pLAbsXi9GeFDTU5noyCAh1f8"
+          },
+          "Export": {
+            "Name": "sls-odoo-zazu-prod-GetDuplicateValidationsLambdaFunctionQualifiedArn"
+          }
+        },
+        "ValidatePaymentLambdaFunctionQualifiedArn": {
+          "Description": "Current Lambda function version",
+          "Value": {
+            "Ref": "ValidatePaymentLambdaVersiongkKxDdtOZTPBds7V0DeG8L75jbOsUo54UuRkrJWWfOc"
+          },
+          "Export": {
+            "Name": "sls-odoo-zazu-prod-ValidatePaymentLambdaFunctionQualifiedArn"
+          }
+        },
+        "GetValidationsLambdaFunctionQualifiedArn": {
+          "Description": "Current Lambda function version",
+          "Value": {
+            "Ref": "GetValidationsLambdaVersionWRE9pyts1SNMzc9ExmGb2QTXzfzdD3CbaTpILcrdqU"
+          },
+          "Export": {
+            "Name": "sls-odoo-zazu-prod-GetValidationsLambdaFunctionQualifiedArn"
+          }
+        },
+        "GetValidationByIdLambdaFunctionQualifiedArn": {
+          "Description": "Current Lambda function version",
+          "Value": {
+            "Ref": "GetValidationByIdLambdaVersionp8GYPhZhw4NSz4IEsAfmjAbywFvK6Bz9sddwWyfeM"
+          },
+          "Export": {
+            "Name": "sls-odoo-zazu-prod-GetValidationByIdLambdaFunctionQualifiedArn"
+          }
+        },
+        "GetPendingValidationsLambdaFunctionQualifiedArn": {
+          "Description": "Current Lambda function version",
+          "Value": {
+            "Ref": "GetPendingValidationsLambdaVersionLSVKwPfpxe9gz4EJ9rJ3MWxBFejHDfcQGsbVU2cQ"
+          },
+          "Export": {
+            "Name": "sls-odoo-zazu-prod-GetPendingValidationsLambdaFunctionQualifiedArn"
+          }
+        },
+        "ManualReviewLambdaFunctionQualifiedArn": {
+          "Description": "Current Lambda function version",
+          "Value": {
+            "Ref": "ManualReviewLambdaVersionD3kJszbg6okCod62EHDGHUty8TBbZ9MrZzMYcoF8"
+          },
+          "Export": {
+            "Name": "sls-odoo-zazu-prod-ManualReviewLambdaFunctionQualifiedArn"
+          }
+        },
+        "HttpApiId": {
+          "Description": "Id of the HTTP API",
+          "Value": {
+            "Ref": "HttpApi"
+          },
+          "Export": {
+            "Name": "sls-odoo-zazu-prod-HttpApiId"
+          }
+        },
+        "HttpApiUrl": {
+          "Description": "URL of the HTTP API",
+          "Value": {
+            "Fn::Join": [
+              "",
+              [
+                "https://",
+                {
+                  "Ref": "HttpApi"
+                },
+                ".execute-api.",
+                {
+                  "Ref": "AWS::Region"
+                },
+                ".",
+                {
+                  "Ref": "AWS::URLSuffix"
+                }
+              ]
+            ]
+          },
+          "Export": {
+            "Name": "sls-odoo-zazu-prod-HttpApiUrl"
+          }
+        }
+      }
+    }
   }
 }

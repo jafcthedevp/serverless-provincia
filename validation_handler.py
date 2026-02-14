@@ -2,11 +2,11 @@ import json
 import os
 import traceback
 import urllib.parse
+import urllib.request
 from datetime import datetime
 from decimal import Decimal
 
 import boto3
-import requests
 import unicodedata
 import uuid
 from boto3.dynamodb.conditions import Key
@@ -113,10 +113,17 @@ def callback_odoo(nota_venta, status):
         }
 
         print(f"[CallbackOdoo] POST {ODOO_CALLBACK_URL} -> {json.dumps(payload)}")
-        response = requests.post(ODOO_CALLBACK_URL, json=payload, headers=headers, timeout=15)
-        print(f"[CallbackOdoo] Response: {response.status_code} - {response.text[:200]}")
-
-        return response.status_code == 200
+        data = json.dumps(payload).encode('utf-8')
+        req = urllib.request.Request(
+            ODOO_CALLBACK_URL,
+            data=data,
+            headers=headers,
+            method='POST'
+        )
+        with urllib.request.urlopen(req, timeout=15) as response:
+            body = response.read().decode('utf-8', errors='replace')
+            print(f"[CallbackOdoo] Response: {response.status} - {body[:200]}")
+            return response.status == 200
 
     except Exception as e:
         print(f"[CallbackOdoo] Error: {str(e)}")
@@ -149,7 +156,7 @@ def process_whatsapp_image(event, context):
         validation_id = str(uuid.uuid4())
         timestamp = int(datetime.now().timestamp() * 1000)
         date_folder = datetime.now().strftime('%Y/%m/%d')
-        s3_key = f"{date_folder}/{validation_id}.jpg"
+        s3_key = f"zazu2/{date_folder}/{validation_id}.jpg"
 
         # Metadata S3
         s3_metadata = {
@@ -170,6 +177,22 @@ def process_whatsapp_image(event, context):
             Metadata=s3_metadata
         )
         print(f"[ImgProcess] Subido a S3: {s3_key}")
+
+        # Invocar OCR async sin depender de notificaciones S3 del bucket compartido.
+        lambda_client.invoke(
+            FunctionName=f"{LAMBDA_PREFIX}-processScreenshot",
+            InvocationType='Event',
+            Payload=json.dumps({
+                'Records': [
+                    {
+                        's3': {
+                            'bucket': {'name': SCREENSHOTS_BUCKET},
+                            'object': {'key': s3_key}
+                        }
+                    }
+                ]
+            })
+        )
 
         # Crear registro inicial en DynamoDB
         dynamo_item = {
@@ -514,9 +537,14 @@ def get_whatsapp_media_url(media_id):
     if not WHATSAPP_TOKEN: return None
     try:
         url = f"https://graph.facebook.com/v18.0/{media_id}"
-        headers = {'Authorization': f'Bearer {WHATSAPP_TOKEN}'}
-        res = requests.get(url, headers=headers)
-        return res.json().get('url')
+        req = urllib.request.Request(
+            url,
+            headers={'Authorization': f'Bearer {WHATSAPP_TOKEN}'},
+            method='GET'
+        )
+        with urllib.request.urlopen(req, timeout=15) as res:
+            payload = json.loads(res.read().decode('utf-8', errors='replace'))
+            return payload.get('url')
     except Exception as e:
         print(f"Error media URL: {e}")
         return None
@@ -525,9 +553,13 @@ def get_whatsapp_media_url(media_id):
 def download_whatsapp_image(url):
     if not WHATSAPP_TOKEN: return None
     try:
-        headers = {'Authorization': f'Bearer {WHATSAPP_TOKEN}'}
-        res = requests.get(url, headers=headers)
-        return res.content
+        req = urllib.request.Request(
+            url,
+            headers={'Authorization': f'Bearer {WHATSAPP_TOKEN}'},
+            method='GET'
+        )
+        with urllib.request.urlopen(req, timeout=30) as res:
+            return res.read()
     except Exception as e:
         print(f"Error download: {e}")
         return None
