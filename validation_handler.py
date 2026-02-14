@@ -36,12 +36,21 @@ def decimal_to_float(obj):
     raise TypeError
 
 
+def parse_decimal(value, field_name='value'):
+    if value is None or value == '':
+        raise ValueError(f"{field_name} is required")
+    try:
+        return Decimal(str(value))
+    except Exception:
+        raise ValueError(f"{field_name} must be numeric")
+
+
 # --- 1. ENTRY POINT DESDE ODOO ---
 
 def validate_from_odoo(event, context):
     """Entry point para validaciones desde Odoo.
 
-    Recibe JSON: {media_id, nota_venta, phone_number, sender_name}
+    Recibe JSON: {media_id, nota_venta, phone_number, sender_name, monto_esperado}
     Invoca processWhatsAppImage async y retorna 200 inmediatamente.
     """
     try:
@@ -51,16 +60,18 @@ def validate_from_odoo(event, context):
         nota_venta = body.get('nota_venta')
         phone_number = body.get('phone_number')
         sender_name = body.get('sender_name', 'Cliente')
+        monto_esperado_raw = body.get('monto_esperado')
 
-        if not media_id or not nota_venta or not phone_number:
+        if not media_id or not nota_venta or not phone_number or monto_esperado_raw is None:
             return {
                 'statusCode': 400,
                 'body': json.dumps({
-                    'error': 'Campos requeridos: media_id, nota_venta, phone_number'
+                    'error': 'Campos requeridos: media_id, nota_venta, phone_number, monto_esperado'
                 })
             }
+        monto_esperado = parse_decimal(monto_esperado_raw, 'monto_esperado')
 
-        print(f"[ValidateFromOdoo] media_id={media_id}, nota_venta={nota_venta}, phone={phone_number}")
+        print(f"[ValidateFromOdoo] media_id={media_id}, nota_venta={nota_venta}, phone={phone_number}, monto_esperado={monto_esperado}")
 
         # Invocar processWhatsAppImage async con nota_venta
         lambda_client.invoke(
@@ -71,6 +82,7 @@ def validate_from_odoo(event, context):
                 'phone_number': phone_number,
                 'sender_name': sender_name,
                 'nota_venta': nota_venta,
+                'monto_esperado': str(monto_esperado),
             })
         )
 
@@ -79,9 +91,12 @@ def validate_from_odoo(event, context):
             'body': json.dumps({
                 'message': 'Validation started',
                 'nota_venta': nota_venta,
+                'monto_esperado': str(monto_esperado),
             })
         }
 
+    except ValueError as e:
+        return {'statusCode': 400, 'body': json.dumps({'error': str(e)})}
     except Exception as e:
         print(f"[ValidateFromOdoo] Error: {str(e)}")
         traceback.print_exc()
@@ -139,8 +154,9 @@ def process_whatsapp_image(event, context):
         sender_name = event['sender_name']
         message_id = event.get('message_id')
         nota_venta = event.get('nota_venta')
+        monto_esperado = parse_decimal(event.get('monto_esperado'), 'monto_esperado')
 
-        print(f"[ImgProcess] Iniciando descarga para ID: {image_id} | nota_venta: {nota_venta}")
+        print(f"[ImgProcess] Iniciando descarga para ID: {image_id} | nota_venta: {nota_venta} | monto_esperado: {monto_esperado}")
 
         # Obtener URL de Facebook Graph API
         image_url = get_whatsapp_media_url(image_id)
@@ -167,6 +183,7 @@ def process_whatsapp_image(event, context):
         }
         if nota_venta:
             s3_metadata['nota_venta'] = nota_venta
+        s3_metadata['monto_esperado'] = str(monto_esperado)
 
         # Subir a S3 con Metadata (Esto disparará el trigger processScreenshot)
         s3_client.put_object(
@@ -207,6 +224,7 @@ def process_whatsapp_image(event, context):
         }
         if nota_venta:
             dynamo_item['nota_venta'] = nota_venta
+        dynamo_item['monto_esperado'] = monto_esperado
 
         validations_table.put_item(Item=dynamo_item)
 
@@ -238,6 +256,7 @@ def process_screenshot(event, context):
             raw_name = metadata.get('sender_name', 'Unknown')
             sender_name = urllib.parse.unquote(raw_name)
             nota_venta = metadata.get('nota_venta')
+            monto_esperado_meta = metadata.get('monto_esperado')
 
             if not validation_id:
                 print("[S3Trigger] ⚠️ Archivo sin validation_id. Saltando.")
@@ -266,6 +285,16 @@ def process_screenshot(event, context):
                 continue
 
             print(f"[OCR] Datos parseados: {json.dumps(parsed_data, default=str)}")
+            try:
+                monto_esperado = parse_decimal(monto_esperado_meta, 'monto_esperado')
+            except ValueError as e:
+                detail = f"Invalid expected amount metadata: {e}"
+                print(f"[OCR] {detail}")
+                update_validation_status(validation_id, 'manual_review', error_message=detail)
+                if nota_venta:
+                    callback_odoo(nota_venta, 'rejected')
+                continue
+            tolerance = Decimal('0.01')
 
             # Actualizar validación con datos extraídos
             update_expression = 'SET extracted_amount = :amount, extracted_code = :code, updated_at = :updated'
@@ -285,6 +314,23 @@ def process_screenshot(event, context):
                 UpdateExpression=update_expression,
                 ExpressionAttributeValues=expression_values
             )
+
+            amount_diff = abs(parsed_data['amount'] - monto_esperado)
+            if amount_diff > tolerance:
+                mismatch_detail = (
+                    f"Amount mismatch. Expected: {monto_esperado}, "
+                    f"Extracted: {parsed_data['amount']}, Diff: {amount_diff}"
+                )
+                print(f"[OCR] {mismatch_detail}")
+                update_validation_status(
+                    validation_id,
+                    'rejected',
+                    match_result=mismatch_detail,
+                    expected_amount=monto_esperado
+                )
+                if nota_venta:
+                    callback_odoo(nota_venta, 'rejected')
+                continue
 
             # Invocar lógica de validación (Async)
             validate_payload = {
